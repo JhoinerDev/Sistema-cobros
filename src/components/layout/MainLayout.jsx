@@ -17,6 +17,10 @@ export default function MainLayout() {
           <Link to="/impuestos" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors">
             <ReceiptText size={20} /> Impuestos
           </Link>
+          {/* Agrega este enlace debajo del de Impuestos */}
+          <Link to="/impuestos/historial" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors">
+            <ReceiptText size={20} /> Historial de Pagos
+          </Link>
           <Link to="/nomina" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors">
             <Users size={20} /> Nómina
           </Link>

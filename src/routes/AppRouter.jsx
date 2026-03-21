@@ -3,7 +3,9 @@ import MainLayout from '../components/layout/MainLayout'; // Importa el Layout
 import Login from '../pages/auth/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
 import GestionImpuestos from '../pages/impuestos/GestionImpuestos';
+import HistorialPagos from '../pages/impuestos/historial/HistorialPagos';
 import GestionNomina from '../pages/nomina/GestionNomina';
+
 
 export default function AppRouter() {
   return (
@@ -17,6 +19,7 @@ export default function AppRouter() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/impuestos" element={<GestionImpuestos />} />
           <Route path="/nomina" element={<GestionNomina />} />
+          <Route path="/impuestos/historial" element={<HistorialPagos />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
