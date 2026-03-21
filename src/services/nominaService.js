@@ -1,6 +1,15 @@
 import { db } from './firebase';
-import { collection, onSnapshot, query, addDoc, serverTimestamp } from 'firebase/firestore';
-import { doc, updateDoc } from 'firebase/firestore'; // Asegúrate de agregar updateDoc al import
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  addDoc, 
+  serverTimestamp, 
+  doc, 
+  updateDoc, 
+  deleteDoc // <--- Añadido para poder borrar
+} from 'firebase/firestore';
+
 const collectionRef = collection(db, "empleados");
 
 // Escuchar empleados en tiempo real
@@ -36,5 +45,16 @@ export const actualizarEstadoEmpleado = async (id, nuevoEstado) => {
     });
   } catch (error) {
     console.error("Error al actualizar estado:", error);
+  }
+};
+
+// --- NUEVA FUNCIÓN: Eliminar empleado ---
+export const eliminarEmpleado = async (id) => {
+  try {
+    const empleadoRef = doc(db, "empleados", id);
+    await deleteDoc(empleadoRef);
+  } catch (error) {
+    console.error("Error al eliminar empleado:", error);
+    throw error;
   }
 };
