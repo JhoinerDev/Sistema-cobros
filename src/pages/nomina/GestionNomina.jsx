@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Users, DollarSign, AlertCircle, Eye, Plus, Search, X, CheckCircle2, Clock, CreditCard, Calendar } from 'lucide-react';
+// Añadimos FileText para el icono del PDF y mantenemos los demás
+import { Users, DollarSign, AlertCircle, Eye, Plus, Search, X, CheckCircle2, Clock, CreditCard, Calendar, FileText } from 'lucide-react';
 import { suscribirAEmpleados, agregarEmpleado, actualizarEstadoEmpleado } from '../../services/nominaService';
+// Importamos el servicio que creamos en el paso anterior
+import { imprimirPlanillaRecaudacion } from '../../services/recaudacionService';
 
 export default function GestionNomina() {
   const [empleados, setEmpleados] = useState([]);
@@ -10,13 +13,12 @@ export default function GestionNomina() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // 1. NUEVO ESTADO INICIAL (Con cédula y fecha de ingreso)
   const [nuevoEmpleado, setNuevoEmpleado] = useState({
     nombre: '',
     cedula: '',
     cargo: '',
     salario: '',
-  fechaIngreso: new Date().toISOString().split('T')[0], // Fecha de hoy por defecto
+    fechaIngreso: '',
     estado: 'Pendiente'
   });
 
@@ -33,7 +35,6 @@ export default function GestionNomina() {
     return () => unsubscribe();
   }, []);
 
-  // Filtrado ampliado para buscar también por cédula
   const empleadosFiltrados = empleados.filter((emp) => 
     emp.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
     emp.cargo?.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -59,18 +60,28 @@ export default function GestionNomina() {
 
   return (
     <div className="p-6 space-y-6 relative">
-      {/* Encabezado */}
+      {/* Encabezado con los dos botones */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Gestión de Nómina</h1>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all active:scale-95 shadow-lg"
-        >
-          <Plus size={16} /> Nuevo Empleado
-        </button>
+        <div className="flex gap-3">
+          {/* NUEVO BOTÓN: Generar PDF */}
+          <button 
+            onClick={() => imprimirPlanillaRecaudacion(empleadosFiltrados)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-emerald-100"
+          >
+            <FileText size={16} /> Generar PDF
+          </button>
+
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all active:scale-95 shadow-lg"
+          >
+            <Plus size={16} /> Nuevo Empleado
+          </button>
+        </div>
       </div>
 
-      {/* Tarjetas */}
+      {/* Grid de Tarjetas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
           <div className="p-3 rounded-lg bg-blue-100 text-blue-600"><Users size={24} /></div>
@@ -117,7 +128,7 @@ export default function GestionNomina() {
           <table className="w-full text-left">
             <thead className="text-[10px] uppercase text-gray-400 bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-4 font-semibold">Cédula</th> {/* <-- NUEVA COLUMNA */}
+                <th className="px-6 py-4 font-semibold">Cédula</th>
                 <th className="px-6 py-4 font-semibold">Empleado</th>
                 <th className="px-6 py-4 font-semibold">Cargo</th>
                 <th className="px-6 py-4 font-semibold text-nowrap">Salario Base</th>
@@ -129,7 +140,7 @@ export default function GestionNomina() {
               {empleadosFiltrados.length > 0 ? (
                 empleadosFiltrados.map((empleado) => (
                   <tr key={empleado.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-bold text-slate-600">V-{empleado.cedula || 'N/A'}</td> {/* Muestra cédula */}
+                    <td className="px-6 py-4 text-sm font-bold text-slate-600">V-{empleado.cedula || 'N/A'}</td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-800">{empleado.nombre}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">{empleado.cargo}</td>
                     <td className="px-6 py-4 text-sm font-bold text-slate-700">${Number(empleado.salario).toLocaleString('es-VE')}</td>
