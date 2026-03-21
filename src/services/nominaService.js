@@ -1,6 +1,6 @@
 import { db } from './firebase';
 import { collection, onSnapshot, query, addDoc, serverTimestamp } from 'firebase/firestore';
-
+import { doc, updateDoc } from 'firebase/firestore'; // Asegúrate de agregar updateDoc al import
 const collectionRef = collection(db, "empleados");
 
 // Escuchar empleados en tiempo real
@@ -24,5 +24,17 @@ export const agregarEmpleado = async (empleado) => {
     });
   } catch (error) {
     console.error("Error al agregar empleado:", error);
+  }
+};
+
+// Función para cambiar el estado (Pagado/Pendiente)
+export const actualizarEstadoEmpleado = async (id, nuevoEstado) => {
+  try {
+    const empleadoRef = doc(db, "empleados", id);
+    await updateDoc(empleadoRef, {
+      estado: nuevoEstado
+    });
+  } catch (error) {
+    console.error("Error al actualizar estado:", error);
   }
 };

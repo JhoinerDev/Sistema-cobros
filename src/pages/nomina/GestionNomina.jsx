@@ -1,22 +1,29 @@
 import { useState, useEffect } from 'react';
-import { Users, DollarSign, AlertCircle, Eye, Plus, Search, X } from 'lucide-react';
-import { suscribirAEmpleados, agregarEmpleado } from '../../services/nominaService';
+import { Users, DollarSign, AlertCircle, Eye, Plus, Search, X, CheckCircle2, Clock, CreditCard, Calendar } from 'lucide-react';
+import { suscribirAEmpleados, agregarEmpleado, actualizarEstadoEmpleado } from '../../services/nominaService';
 
 export default function GestionNomina() {
   const [empleados, setEmpleados] = useState([]);
   const [cargando, setCargando] = useState(true);
   
-  // 1. Estado para el texto del buscador
   const [busqueda, setBusqueda] = useState('');
 
-  // --- ESTADOS PARA EL MODAL ---
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // 1. NUEVO ESTADO INICIAL (Con cédula y fecha de ingreso)
   const [nuevoEmpleado, setNuevoEmpleado] = useState({
     nombre: '',
+    cedula: '',
     cargo: '',
     salario: '',
+  fechaIngreso: new Date().toISOString().split('T')[0], // Fecha de hoy por defecto
     estado: 'Pendiente'
   });
+
+  const toggleEstado = async (id, estadoActual) => {
+    const nuevoEstado = estadoActual === 'Pagado' ? 'Pendiente' : 'Pagado';
+    await actualizarEstadoEmpleado(id, nuevoEstado);
+  };
 
   useEffect(() => {
     const unsubscribe = suscribirAEmpleados((datos) => {
@@ -26,26 +33,24 @@ export default function GestionNomina() {
     return () => unsubscribe();
   }, []);
 
-  // --- LÓGICA DE FILTRADO ---
-  // Filtramos sobre el array original basándonos en el nombre o cargo
+  // Filtrado ampliado para buscar también por cédula
   const empleadosFiltrados = empleados.filter((emp) => 
     emp.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    emp.cargo?.toLowerCase().includes(busqueda.toLowerCase())
+    emp.cargo?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    emp.cedula?.includes(busqueda)
   );
 
-  // --- FUNCIÓN PARA GUARDAR ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await agregarEmpleado(nuevoEmpleado);
       setIsModalOpen(false);
-      setNuevoEmpleado({ nombre: '', cargo: '', salario: '', estado: 'Pendiente' });
+      setNuevoEmpleado({ nombre: '', cedula: '', cargo: '', salario: '', fechaIngreso: '', estado: 'Pendiente' });
     } catch (error) {
       console.error("Error al guardar:", error);
     }
   };
 
-  // Los cálculos se mantienen sobre el total de empleados reales
   const totalEmpleados = empleados.length;
   const nominaTotal = empleados.reduce((acc, emp) => acc + (Number(emp.salario) || 0), 0);
   const pagosPendientes = empleados.filter(emp => emp.estado === 'Pendiente').length;
@@ -65,7 +70,7 @@ export default function GestionNomina() {
         </button>
       </div>
 
-      {/* Grid de Tarjetas */}
+      {/* Tarjetas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
           <div className="p-3 rounded-lg bg-blue-100 text-blue-600"><Users size={24} /></div>
@@ -96,13 +101,11 @@ export default function GestionNomina() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-5 border-b border-gray-50 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h3 className="font-bold text-gray-700 text-nowrap">Listado de Empleados</h3>
-          
-          {/* 2. Input del buscador conectado al estado */}
           <div className="relative w-full sm:w-64">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input 
               type="text" 
-              placeholder="Buscar por nombre o cargo..." 
+              placeholder="Buscar por nombre, cédula o cargo..." 
               className="w-full pl-9 pr-4 py-1.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
@@ -114,6 +117,7 @@ export default function GestionNomina() {
           <table className="w-full text-left">
             <thead className="text-[10px] uppercase text-gray-400 bg-gray-50 border-b">
               <tr>
+                <th className="px-6 py-4 font-semibold">Cédula</th> {/* <-- NUEVA COLUMNA */}
                 <th className="px-6 py-4 font-semibold">Empleado</th>
                 <th className="px-6 py-4 font-semibold">Cargo</th>
                 <th className="px-6 py-4 font-semibold text-nowrap">Salario Base</th>
@@ -122,18 +126,28 @@ export default function GestionNomina() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {/* 3. Mapeamos los filtrados, no el total */}
               {empleadosFiltrados.length > 0 ? (
                 empleadosFiltrados.map((empleado) => (
                   <tr key={empleado.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-bold text-slate-600">V-{empleado.cedula || 'N/A'}</td> {/* Muestra cédula */}
                     <td className="px-6 py-4 text-sm font-medium text-gray-800">{empleado.nombre}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">{empleado.cargo}</td>
                     <td className="px-6 py-4 text-sm font-bold text-slate-700">${Number(empleado.salario).toLocaleString('es-VE')}</td>
-                    <td className="px-6 py-4 text-xs font-bold uppercase">
-                      <span className={`px-2 py-1 rounded-full ${empleado.estado === 'Pagado' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    
+                    <td className="px-6 py-4">
+                      <button 
+                        onClick={() => toggleEstado(empleado.id, empleado.estado)}
+                        className={`group flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all active:scale-95 border ${
+                          empleado.estado === 'Pagado' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                            : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                        }`}
+                      >
+                        {empleado.estado === 'Pagado' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
                         {empleado.estado}
-                      </span>
+                      </button>
                     </td>
+
                     <td className="px-6 py-4 text-right">
                       <button className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg"><Eye size={18} /></button>
                     </td>
@@ -141,8 +155,8 @@ export default function GestionNomina() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="px-6 py-10 text-center text-gray-400 text-sm italic">
-                    No se encontraron empleados con ese nombre o cargo.
+                  <td colSpan="6" className="px-6 py-10 text-center text-gray-400 text-sm italic">
+                    No se encontraron empleados.
                   </td>
                 </tr>
               )}
@@ -154,26 +168,46 @@ export default function GestionNomina() {
       {/* --- MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
               <h3 className="font-bold text-gray-800">Nuevo Registro de Nómina</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
+            
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Nombre</label>
-                <input 
-                  required placeholder="Nombre del Empleado"
-                  className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm mt-1 outline-none focus:border-blue-500"
-                  onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, nombre: e.target.value})}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Cédula</label>
+                  <div className="relative mt-1">
+                    <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      required placeholder="Ej. 29123456"
+                      type="number"
+                      className="w-full pl-9 p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:border-blue-500"
+                      value={nuevoEmpleado.cedula}
+                      onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, cedula: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Nombre Completo</label>
+                  <input 
+                    required placeholder="Nombre del Empleado"
+                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm mt-1 outline-none focus:border-blue-500"
+                    value={nuevoEmpleado.nombre}
+                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, nombre: e.target.value})}
+                  />
+                </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Cargo</label>
                   <input 
                     required placeholder="Cargo"
                     className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm mt-1 outline-none focus:border-blue-500"
+                    value={nuevoEmpleado.cargo}
                     onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, cargo: e.target.value})}
                   />
                 </div>
@@ -182,10 +216,25 @@ export default function GestionNomina() {
                   <input 
                     required type="number" placeholder="Salario ($)"
                     className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm mt-1 outline-none focus:border-blue-500"
+                    value={nuevoEmpleado.salario}
                     onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, salario: e.target.value})}
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Fecha de Ingreso</label>
+                <div className="relative mt-1">
+                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    required type="date"
+                    className="w-full pl-9 p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:border-blue-500"
+                    value={nuevoEmpleado.fechaIngreso}
+                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, fechaIngreso: e.target.value})}
+                  />
+                </div>
+              </div>
+
               <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-colors mt-2">
                 Guardar Empleado
               </button>
