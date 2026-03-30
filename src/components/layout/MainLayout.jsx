@@ -25,7 +25,7 @@ export default function MainLayout() {
             <Users size={20} /> Nómina
           </Link>
           <Link 
-            to="/page/admin" 
+            to="/admin/locatarios" // <--- ¡Debe ser igual al de AppRouter!
             className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors"
             >
             <Users size={20} /> B.D
