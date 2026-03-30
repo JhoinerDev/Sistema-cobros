@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth"; // Añadimos estos helpers
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -16,7 +16,21 @@ const firebaseConfig = {
 // Inicializamos la App
 const app = initializeApp(firebaseConfig);
 
-// EXPORTAMOS los servicios (Aquí es donde estaba el error de la pantalla blanca)
+// EXPORTAMOS los servicios
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// --- AÑADIDOS PARA EL SISTEMA DE COBROS ---
+
+/**
+ * Función para cerrar sesión fácilmente desde cualquier parte
+ */
+export const logout = () => signOut(auth);
+
+/**
+ * Escucha cambios en la sesión (Útil para proteger el MainLayout)
+ */
+export const observeAuthState = (callback) => onAuthStateChanged(auth, callback);
+
+export default app;
