@@ -5,7 +5,7 @@ import Dashboard from '../pages/dashboard/Dashboard';
 import GestionImpuestos from '../pages/impuestos/GestionImpuestos';
 import HistorialPagos from '../pages/impuestos/historial/HistorialPagos';
 import GestionNomina from '../pages/nomina/GestionNomina';
-
+import AdminLocatarios from '../pages/admin/AdminLocatarios';
 
 export default function AppRouter() {
   return (
@@ -20,6 +20,7 @@ export default function AppRouter() {
           <Route path="/impuestos" element={<GestionImpuestos />} />
           <Route path="/nomina" element={<GestionNomina />} />
           <Route path="/impuestos/historial" element={<HistorialPagos />} />
+          <Route path="/admin/AdminLocatarios" element={<AdminLocatarios />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

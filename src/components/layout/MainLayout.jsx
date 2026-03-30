@@ -24,6 +24,14 @@ export default function MainLayout() {
           <Link to="/nomina" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors">
             <Users size={20} /> Nómina
           </Link>
+          <Link 
+            to="/page/admin" 
+            className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors"
+            >
+            <Users size={20} /> B.D
+            </Link>
+          
+          
         </nav>
 
         <div className="p-4 border-t border-slate-700">

@@ -1,30 +1,26 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../../services/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { Search, FileDown } from 'lucide-react'; // Iconos para el buscador y PDF
+import { Search, FileDown, FileText } from 'lucide-react'; // Añadido FileText
 import { generarComprobantePDF } from '../../../utils/generarReportes';
+import { imprimirPlanillaRecaudacion } from '../../../services/recaudacionService';
 
 export default function HistorialPagos() {
   const [pagos, setPagos] = useState([]);
-  const [busqueda, setBusqueda] = useState(""); // Estado para el buscador
+  const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
     const q = query(collection(db, "pagos_impuestos"), orderBy("fecha", "desc"));
-
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const docs = [];
-      querySnapshot.forEach((doc) => {
-        docs.push({ id: doc.id, ...doc.data() });
-      });
+      querySnapshot.forEach((doc) => { docs.push({ id: doc.id, ...doc.data() }); });
       setPagos(docs);
       setCargando(false);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // Lógica de filtrado: busca por nombre de contribuyente
   const pagosFiltrados = pagos.filter((pago) =>
     pago.contribuyente?.toLowerCase().includes(busqueda.toLowerCase())
   );
@@ -34,16 +30,26 @@ export default function HistorialPagos() {
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Historial de Recaudación</h2>
         
-        {/* Buscador Profesional */}
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Buscar contribuyente..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-all"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          {/* Buscador Profesional */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Buscar contribuyente..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-all"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+
+          {/* BOTÓN AGREGADO: Exportar Reporte General */}
+          <button 
+            onClick={() => imprimirPlanillaRecaudacion(pagosFiltrados, true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shadow-lg shadow-emerald-100"
+          >
+            <FileText size={18} /> Reporte PDF
+          </button>
         </div>
       </div>
       
@@ -61,6 +67,7 @@ export default function HistorialPagos() {
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
+            
             <tbody className="divide-y divide-gray-100">
               {pagosFiltrados.length > 0 ? (
                 pagosFiltrados.map((pago) => (
