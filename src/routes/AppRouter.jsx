@@ -22,6 +22,8 @@ export default function AppRouter() {
           <Route path="/nomina" element={<GestionNomina />} />
           <Route path="/impuestos/historial" element={<HistorialPagos />} />
           <Route path="/usuarios" element={<UserManagement />} />
+          <Route path="/admin/locatarios" element={<AdminLocatarios />} />
+
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
