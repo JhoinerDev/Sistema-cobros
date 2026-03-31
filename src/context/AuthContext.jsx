@@ -1,16 +1,15 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { auth, db } from "../services/firebase"; // Importamos db
+import { auth, db } from "../services/firebase"; 
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore"; // Para buscar el rol
+import { doc, getDoc } from "firebase/firestore"; 
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // <--- Estado para el rol
+  const [role, setRole] = useState(null); 
   const [loading, setLoading] = useState(true);
 
-  // Función para cerrar sesión
   const logout = () => signOut(auth);
 
   useEffect(() => {
@@ -18,12 +17,19 @@ export function AuthProvider({ children }) {
       setUser(currentUser);
       
       if (currentUser) {
-        // Si hay usuario, buscamos su rol en la colección 'usuarios'
-        const docRef = doc(db, "usuarios", currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          setRole(docSnap.data().role); // 'admin', 'operador', etc.
+        try {
+          const docRef = doc(db, "usuarios", currentUser.uid);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            setRole(docSnap.data().role); 
+          } else {
+            console.warn("No se encontró documento de usuario en Firestore.");
+            setRole('usuario'); 
+          }
+        } catch (error) {
+          console.error("Error al obtener el rol de Firestore:", error);
+          setRole(null);
         }
       } else {
         setRole(null);
@@ -34,9 +40,9 @@ export function AuthProvider({ children }) {
     return () => unsubscribe();
   }, []);
 
-  // Ahora pasamos 'user', 'role' y 'logout' a toda la app
   return (
-    <AuthContext.Provider value={{ user, role, logout }}>
+    <AuthContext.Provider value={{ user, role, logout, loading }}>
+      {/* Solo renderizamos la app cuando termine de cargar el estado de auth */}
       {!loading && children}
     </AuthContext.Provider>
   );

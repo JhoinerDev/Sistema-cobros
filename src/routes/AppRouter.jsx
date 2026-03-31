@@ -16,7 +16,20 @@ const RoleGuard = ({ allowedRoles }) => {
 
   if (loading) return null; // Espera a que Firebase responda
   if (!user) return <Navigate to="/login" replace />;
-  if (!allowedRoles.includes(role)) return <Navigate to="/dashboard" replace />;
+  
+  // SOLUCIÓN AL BUCLE INFINITO:
+  // En lugar de redirigir, mostramos un mensaje en pantalla. 
+  // Esto evita que React colapse intentando redirigir infinitamente.
+  if (!allowedRoles.includes(role)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-white rounded-xl shadow-sm border border-slate-200 mt-10">
+        <h2 className="text-2xl font-bold text-red-500 mb-2">Acceso Restringido</h2>
+        <p className="text-slate-600">
+          Tu rol actual <strong className="uppercase">({role})</strong> no tiene permisos para acceder a esta ruta.
+        </p>
+      </div>
+    );
+  }
 
   return <Outlet />;
 };
