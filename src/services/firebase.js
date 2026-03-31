@@ -3,6 +3,7 @@ import { getAuth, onAuthStateChanged, signOut } from "firebase/auth"; // Añadim
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+
 // Estos datos los sacas de la configuración de tu proyecto en Firebase Console
 const firebaseConfig = {
   apiKey: "AIzaSyDDMEB06ofzLWPLHthEL2MI23o79r8Ee8E",
@@ -20,6 +21,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
 
 // --- AÑADIDOS PARA EL SISTEMA DE COBROS ---
 

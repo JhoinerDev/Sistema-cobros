@@ -1,14 +1,32 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { auth } from '../../services/firebase'; // Asegúrate de que esta ruta coincida con tu estructura
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState(''); // Nuevo estado para mostrar alertas
+  const [cargando, setCargando] = useState(false); // Para deshabilitar el botón mientras carga
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setError('');
+    setCargando(true);
+
+    try {
+      // Esta es la línea mágica que conecta con Firebase
+      await signInWithEmailAndPassword(auth, email, password);
+      // Si la clave es correcta, Firebase guarda la sesión y te deja pasar
+      navigate('/dashboard');
+    } catch (error) {
+      console.error("Error de Auth:", error.code);
+      // Si falla, mostramos un mensaje en lugar de una pantalla en blanco
+      setError('Correo o contraseña incorrectos. Inténtalo de nuevo.');
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
@@ -40,6 +58,13 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
+            {/* Mensaje de Error Visual */}
+            {error && (
+              <div className="bg-red-50 text-red-500 p-3 rounded-xl text-xs font-bold text-center border border-red-100">
+                {error}
+              </div>
+            )}
+
             {/* Input Usuario/Email */}
             <div className="group">
               <input 
@@ -68,9 +93,14 @@ export default function Login() {
             {/* Botón con Degradado y Animación */}
             <button 
               type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-0.5 active:scale-95 transition-all duration-200 mt-2"
+              disabled={cargando}
+              className={`w-full text-white py-4 rounded-2xl font-bold text-sm shadow-xl transition-all duration-200 mt-2 flex justify-center items-center ${
+                cargando 
+                  ? 'bg-slate-400 cursor-not-allowed shadow-none' 
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-0.5 active:scale-95'
+              }`}
             >
-              Iniciar Sesión
+              {cargando ? 'Verificando...' : 'Iniciar Sesión'}
             </button>
           </form>
 
