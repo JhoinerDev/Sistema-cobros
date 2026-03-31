@@ -6,12 +6,12 @@ import { getStorage } from "firebase/storage";
 
 // Estos datos los sacas de la configuración de tu proyecto en Firebase Console
 const firebaseConfig = {
-  apiKey: "AIzaSyDDMEB06ofzLWPLHthEL2MI23o79r8Ee8E",
-  authDomain: "sistema-cobros-b097e.firebaseapp.com",
-  projectId: "sistema-cobros-b097e",
-  storageBucket: "sistema-cobros-b097e.firebasestorage.app",
-  messagingSenderId: "688284812426",
-  appId: "1:688284812426:web:8edb726cc0fddef62e1973"
+  apiKey: "AIzaSyCdO7sdhX9FPFXMtui-g2OcIC84_8XjbK4",
+  authDomain: "app-cobros-8b231.firebaseapp.com",
+  projectId: "app-cobros-8b231",
+  storageBucket: "app-cobros-8b231.firebasestorage.app",
+  messagingSenderId: "729314259943",
+  appId: "1:729314259943:web:e893f6bc62b7d3d2bb4342"
 };
 
 // Inicializamos la App
