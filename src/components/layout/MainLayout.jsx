@@ -1,10 +1,15 @@
 import { Link, Outlet } from 'react-router-dom';
 import { LayoutDashboard, ReceiptText, Users, LogOut, UserCog } from 'lucide-react';
-
+import { useNavigate } from 'react-router-dom'; // Para moverte de página
+import { useAuth } from '../../context/AuthContext';
 export default function MainLayout() {
-  // NOTA: Tu compañero agregó lógica de roles. 
-  // Por ahora definimos uno por defecto para que no explote la app.
-  const role = "admin"; 
+  const { logout } = useAuth(); 
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout(); // Cierra la puerta con llave (Firebase)
+    navigate('/login'); // Te saca al pasillo (Navegación)
+  };
 
   return (
     <div className="flex h-screen bg-gray-100">
