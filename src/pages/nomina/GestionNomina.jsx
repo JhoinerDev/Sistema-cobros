@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Users, DollarSign, AlertCircle, Eye, Plus, 
   Search, X, CheckCircle2, Clock, CreditCard, 
-  Calendar, FileText 
+  Calendar, FileText, Loader2 
 } from 'lucide-react';
 import { 
   suscribirAEmpleados, 
@@ -26,7 +26,6 @@ export default function GestionNomina() {
     estado: 'Pendiente'
   });
 
-  // --- EFECTOS Y LÓGICA DE DATOS ---
   useEffect(() => {
     const unsubscribe = suscribirAEmpleados((datos) => {
       setEmpleados(datos);
@@ -54,181 +53,173 @@ export default function GestionNomina() {
     }
   };
 
-  // --- FILTROS Y CÁLCULOS ---
   const empleadosFiltrados = empleados.filter((emp) => 
     emp.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
     emp.cargo?.toLowerCase().includes(busqueda.toLowerCase()) ||
     emp.cedula?.includes(busqueda)
   );
 
-  const totalEmpleados = empleados.length;
   const nominaTotal = empleados.reduce((acc, emp) => acc + (Number(emp.salario) || 0), 0);
   const pagosPendientes = empleados.filter(emp => emp.estado === 'Pendiente').length;
 
-  // --- RENDERIZADO CONDICIONAL ---
   if (cargando) {
     return (
-      <div className="p-10 flex flex-col items-center justify-center text-gray-500 h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mb-4"></div>
-        <p className="italic">Conectando con la base de datos...</p>
+      <div className="h-[60vh] flex flex-col items-center justify-center text-slate-500">
+        <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
+        <p className="font-medium animate-pulse">Cargando nómina...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 relative">
+    <div className="space-y-6 pb-10">
       
-      {/* --- ENCABEZADO Y BOTONES --- */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-gray-800">Gestión de Nómina</h1>
-        <div className="flex gap-3 w-full sm:w-auto">
+      {/* --- ENCABEZADO ADAPTABLE --- */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Gestión de Nómina</h1>
+          <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Control de Pagos y Personal</p>
+        </div>
+        <div className="flex gap-2 w-full md:w-auto">
           <button 
             onClick={() => imprimirPlanillaRecaudacion(empleadosFiltrados)}
-            className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-emerald-100"
+            className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
           >
-            <FileText size={16} /> Generar PDF
+            <FileText size={16} /> <span className="hidden sm:inline">PDF</span>
           </button>
 
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex-1 sm:flex-none bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg"
+            className="flex-[2] md:flex-none bg-slate-900 text-white px-5 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-slate-200"
           >
-            <Plus size={16} /> Nuevo Empleado
+            <Plus size={18} /> Nuevo Empleado
           </button>
         </div>
       </div>
 
-      {/* --- TARJETAS DE RESUMEN --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-blue-100 text-blue-600"><Users size={24} /></div>
+      {/* --- TARJETAS DE RESUMEN (Grid dinámico) --- */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-4">
+          <div className="p-3 rounded-2xl bg-blue-50 text-blue-600"><Users size={24} /></div>
           <div>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest text-nowrap">Total Empleados</p>
-            <p className="text-2xl font-black text-gray-900">{totalEmpleados}</p>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Personal</p>
+            <p className="text-xl font-black text-slate-800">{empleados.length}</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-emerald-100 text-emerald-600"><DollarSign size={24} /></div>
+        <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-4">
+          <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600"><DollarSign size={24} /></div>
           <div>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest text-nowrap">Nomina del Mes</p>
-            <p className="text-2xl font-black text-gray-900">${nominaTotal.toLocaleString('es-VE')}</p>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Nómina</p>
+            <p className="text-xl font-black text-slate-800">${nominaTotal.toLocaleString('es-VE')}</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-rose-100 text-rose-600"><AlertCircle size={24} /></div>
+        <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-4">
+          <div className="p-3 rounded-2xl bg-rose-50 text-rose-600"><AlertCircle size={24} /></div>
           <div>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest text-nowrap">Pagos Pendientes</p>
-            <p className="text-2xl font-black text-gray-900">{pagosPendientes}</p>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Pendientes</p>
+            <p className="text-xl font-black text-slate-800">{pagosPendientes}</p>
           </div>
         </div>
       </div>
 
-      {/* --- TABLA DE EMPLEADOS --- */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Barra superior de la tabla */}
-        <div className="p-5 border-b border-gray-50 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h3 className="font-bold text-gray-700 text-nowrap">Listado de Empleados</h3>
-          <div className="relative w-full sm:w-80">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      {/* --- TABLA OPTIMIZADA --- */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-5 border-b border-slate-50 bg-slate-50/30">
+          <div className="relative w-full">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text" 
-              placeholder="Buscar por nombre, cédula o cargo..." 
-              className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="Buscar empleado o cargo..." 
+              className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-100 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
             />
           </div>
         </div>
 
-        {/* Contenedor responsivo de la tabla */}
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left">
-            <thead className="text-[10px] uppercase text-gray-400 bg-gray-50 border-b">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50/50 text-[10px] uppercase font-black text-slate-400 tracking-widest">
               <tr>
-                <th className="px-6 py-4 font-semibold whitespace-nowrap">Cédula</th>
-                <th className="px-6 py-4 font-semibold whitespace-nowrap">Empleado</th>
-                <th className="px-6 py-4 font-semibold whitespace-nowrap">Cargo</th>
-                <th className="px-6 py-4 font-semibold whitespace-nowrap">Salario Base</th>
-                <th className="px-6 py-4 font-semibold whitespace-nowrap">Estado</th>
-                <th className="px-6 py-4 font-semibold text-right whitespace-nowrap">Acciones</th>
+                <th className="px-6 py-5">Empleado / Cargo</th>
+                <th className="px-6 py-5 hidden md:table-cell">Salario</th>
+                <th className="px-6 py-5">Estado</th>
+                <th className="px-6 py-5 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {empleadosFiltrados.length > 0 ? (
-                empleadosFiltrados.map((empleado) => (
-                  <tr key={empleado.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-bold text-slate-600">V-{empleado.cedula || 'N/A'}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800">{empleado.nombre}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{empleado.cargo}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-slate-700">${Number(empleado.salario).toLocaleString('es-VE')}</td>
-                    
-                    <td className="px-6 py-4">
-                      <button 
-                        onClick={() => toggleEstado(empleado.id, empleado.estado)}
-                        className={`group flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all active:scale-95 border ${
-                          empleado.estado === 'Pagado' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
-                            : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                        }`}
-                      >
-                        {empleado.estado === 'Pagado' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                        {empleado.estado}
-                      </button>
-                    </td>
+            <tbody className="divide-y divide-slate-50">
+              {empleadosFiltrados.map((empleado) => (
+                <tr key={empleado.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-800">{empleado.nombre}</span>
+                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">
+                        {empleado.cargo} • <span className="font-mono">V-{empleado.cedula}</span>
+                      </span>
+                      {/* En móvil mostramos el salario aquí abajo */}
+                      <span className="text-emerald-600 font-black text-xs md:hidden mt-1">
+                        ${Number(empleado.salario).toLocaleString('es-VE')}
+                      </span>
+                    </div>
+                  </td>
+                  
+                  <td className="px-6 py-4 hidden md:table-cell">
+                    <span className="text-sm font-black text-slate-700">${Number(empleado.salario).toLocaleString('es-VE')}</span>
+                  </td>
+                  
+                  <td className="px-6 py-4">
+                    <button 
+                      onClick={() => toggleEstado(empleado.id, empleado.estado)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all active:scale-95 border ${
+                        empleado.estado === 'Pagado' 
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                          : 'bg-amber-50 text-amber-700 border-amber-100'
+                      }`}
+                    >
+                      {empleado.estado === 'Pagado' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                      <span className="hidden xs:inline">{empleado.estado}</span>
+                    </button>
+                  </td>
 
-                    <td className="px-6 py-4 text-right">
-                      <button className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg transition-colors">
-                        <Eye size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="px-6 py-10 text-center text-gray-400 text-sm italic">
-                    No se encontraron empleados que coincidan con la búsqueda.
+                  <td className="px-6 py-4 text-right">
+                    <button className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
+                      <Eye size={20} />
+                    </button>
                   </td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* --- MODAL DE NUEVO EMPLEADO --- */}
+      {/* --- MODAL RESPONSIVA (TIPO SHEET EN MÓVIL) --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
-              <h3 className="font-bold text-gray-800">Nuevo Registro de Nómina</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                <X size={20} />
-              </button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in">
+            <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+              <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">Nuevo Empleado</h3>
+              <button onClick={() => setIsModalOpen(false)} className="bg-white p-2 rounded-full shadow-sm text-slate-400"><X size={20} /></button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Cédula</label>
-                  <div className="relative mt-1">
-                    <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                      required placeholder="Ej. 29123456"
-                      type="number"
-                      className="w-full pl-9 p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
-                      value={nuevoEmpleado.cedula}
-                      onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, cedula: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Nombre Completo</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cédula</label>
                   <input 
-                    required placeholder="Nombre del Empleado"
-                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm mt-1 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
+                    required type="number"
+                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    value={nuevoEmpleado.cedula}
+                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, cedula: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Nombre</label>
+                  <input 
+                    required 
+                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
                     value={nuevoEmpleado.nombre}
                     onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, nombre: e.target.value})}
                   />
@@ -236,41 +227,38 @@ export default function GestionNomina() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Cargo</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cargo</label>
                   <input 
-                    required placeholder="Cargo"
-                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm mt-1 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
+                    required 
+                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
                     value={nuevoEmpleado.cargo}
                     onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, cargo: e.target.value})}
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Salario ($)</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Salario ($)</label>
                   <input 
-                    required type="number" placeholder="Ej. 150"
-                    className="w-full p-2.5 bg-gray-50 border rounded-lg text-sm mt-1 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
+                    required type="number"
+                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-emerald-600"
                     value={nuevoEmpleado.salario}
                     onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, salario: e.target.value})}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Fecha de Ingreso</label>
-                <div className="relative mt-1">
-                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input 
-                    required type="date"
-                    className="w-full pl-9 p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
-                    value={nuevoEmpleado.fechaIngreso}
-                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, fechaIngreso: e.target.value})}
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Fecha Ingreso</label>
+                <input 
+                  required type="date"
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  value={nuevoEmpleado.fechaIngreso}
+                  onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, fechaIngreso: e.target.value})}
+                />
               </div>
 
-              <button type="submit" className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all active:scale-95 mt-4">
-                Guardar Empleado
+              <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black shadow-xl shadow-slate-200 transition-all active:scale-95 mt-4 uppercase text-xs tracking-widest">
+                Confirmar Registro
               </button>
             </form>
           </div>

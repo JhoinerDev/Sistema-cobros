@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../../services/firebase'; // Asegúrate de que esta ruta coincida con tu estructura
+import { auth } from '../../services/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { LogIn, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(''); // Nuevo estado para mostrar alertas
-  const [cargando, setCargando] = useState(false); // Para deshabilitar el botón mientras carga
+  const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -16,99 +17,109 @@ export default function Login() {
     setCargando(true);
 
     try {
-      // Esta es la línea mágica que conecta con Firebase
       await signInWithEmailAndPassword(auth, email, password);
-      // Si la clave es correcta, Firebase guarda la sesión y te deja pasar
       navigate('/dashboard');
     } catch (error) {
       console.error("Error de Auth:", error.code);
-      // Si falla, mostramos un mensaje en lugar de una pantalla en blanco
-      setError('Correo o contraseña incorrectos. Inténtalo de nuevo.');
+      setError('Correo o contraseña incorrectos.');
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <div className="h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-100 p-4 overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 p-4 relative overflow-hidden">
       
-      {/* Tarjeta con Estilo Premium */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] w-full max-w-[350px] relative border border-white p-1">
-        
-        {/* Logo en Esquina - PNG */}
-        <div className="absolute top-6 right-6 w-10 h-10">
-          <img 
-            src="/logo.png" 
-            alt="Logo" 
-            className="w-full h-full object-contain drop-shadow-sm"
-            onError={(e) => e.target.style.display = 'none'} 
-          />
+      {/* Círculos decorativos de fondo (No estorban en móvil) */}
+      <div className="absolute -top-24 -left-24 w-64 h-64 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
+      <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-indigo-100 rounded-full blur-3xl opacity-50"></div>
+
+      <div className="relative w-full max-w-[400px]">
+        {/* Logo / Icono Superior */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-16 h-16 bg-slate-900 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-slate-200 mb-4 rotate-3">
+            <LogIn className="text-white" size={28} />
+          </div>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">
+            Pro<span className="text-blue-600">Cobros</span>
+          </h1>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Acceso Administrativo</p>
         </div>
 
-        <div className="p-8 pt-12">
-          {/* Título Centrado y Estilizado */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight tracking-tight">
-              Acceso
-            </h1>
-            <div className="h-1 w-8 bg-blue-500 mx-auto mt-1 rounded-full opacity-50"></div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-3">
-              Sistema de Cobros
-            </p>
-          </div>
+        {/* Tarjeta de Formulario */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white p-8 sm:p-10">
+          
+          {error && (
+            <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+              <AlertCircle className="text-rose-500 shrink-0" size={18} />
+              <p className="text-[11px] font-black text-rose-600 uppercase leading-tight">{error}</p>
+            </div>
+          )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            {/* Mensaje de Error Visual */}
-            {error && (
-              <div className="bg-red-50 text-red-500 p-3 rounded-xl text-xs font-bold text-center border border-red-100">
-                {error}
+          <form onSubmit={handleLogin} className="space-y-5">
+            {/* Input Email */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Usuario / Email</label>
+              <div className="relative group">
+                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={18} />
+                <input 
+                  type="email" 
+                  required
+                  className="w-full pl-14 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-300"
+                  placeholder="ejemplo@correo.com"
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
-            )}
-
-            {/* Input Usuario/Email */}
-            <div className="group">
-              <input 
-                type="email" 
-                required
-                className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm text-slate-700 placeholder:text-slate-300 group-hover:border-slate-200"
-                placeholder="Correo electrónico"
-                onChange={(e) => setEmail(e.target.value)}
-              />
             </div>
 
             {/* Input Password */}
-            <div className="group text-right">
-              <input 
-                type="password" 
-                required
-                className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm text-slate-700 placeholder:text-slate-300 group-hover:border-slate-200"
-                placeholder="Contraseña"
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <button type="button" className="text-[10px] text-blue-500 font-semibold mt-2 mr-2 hover:underline">
-                ¿Olvidaste tu clave?
-              </button>
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center px-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contraseña</label>
+              </div>
+              <div className="relative group">
+                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={18} />
+                <input 
+                  type="password" 
+                  required
+                  className="w-full pl-14 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-300"
+                  placeholder="••••••••"
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <div className="text-right pr-2">
+                <button type="button" className="text-[10px] font-black text-blue-500 uppercase hover:underline tracking-tighter">
+                  ¿Olvidaste tu clave?
+                </button>
+              </div>
             </div>
 
-            {/* Botón con Degradado y Animación */}
+            {/* Botón Principal */}
             <button 
               type="submit"
               disabled={cargando}
-              className={`w-full text-white py-4 rounded-2xl font-bold text-sm shadow-xl transition-all duration-200 mt-2 flex justify-center items-center ${
+              className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl transition-all duration-300 mt-4 flex justify-center items-center gap-3 ${
                 cargando 
-                  ? 'bg-slate-400 cursor-not-allowed shadow-none' 
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-200 hover:shadow-blue-300 hover:-translate-y-0.5 active:scale-95'
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
+                  : 'bg-slate-900 text-white shadow-slate-200 hover:bg-black hover:-translate-y-1 active:scale-95'
               }`}
             >
-              {cargando ? 'Verificando...' : 'Iniciar Sesión'}
+              {cargando ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Verificando
+                </>
+              ) : (
+                'Entrar al Sistema'
+              )}
             </button>
           </form>
-
-          {/* Versión Ultra Pequeña */}
-          <div className="mt-8 text-center">
-            <p className="text-[9px] text-slate-300 font-bold tracking-widest">PRO-COBROS v1.0</p>
-          </div>
         </div>
+
+        {/* Footer del Login */}
+        <p className="mt-10 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.4em]">
+          v1.0 • Control Interno
+        </p>
       </div>
     </div>
   );

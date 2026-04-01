@@ -1,11 +1,18 @@
+import { useState } from 'react'; // Añadido para el control del menú
 import { useAuth } from '../../context/AuthContext';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ReceiptText, Users, LogOut, UserCog, AlertCircle, Loader2 } from 'lucide-react';
+import { 
+  LayoutDashboard, ReceiptText, Users, LogOut, 
+  UserCog, AlertCircle, Loader2, Menu, X 
+} from 'lucide-react';
 
 export default function MainLayout() {
-  // Extraemos 'loading' también para saber si estamos esperando a Firebase
   const { role, logout, loading, user } = useAuth(); 
   const navigate = useNavigate();
+  
+  // ESTADOS PARA RESPONSIVIDAD Y HOVER
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -16,7 +23,6 @@ export default function MainLayout() {
     }
   };
 
-  // 1. ESTADO DE CARGA: Si Firebase aún no responde
   if (loading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
@@ -26,7 +32,6 @@ export default function MainLayout() {
     );
   }
 
-  // 2. ERROR DE ROL: Si el usuario existe pero no tiene documento en Firestore o el campo 'role' está vacío
   if (!role) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-4 text-center">
@@ -49,51 +54,90 @@ export default function MainLayout() {
     );
   }
 
-  // 3. RENDERIZADO NORMAL: Si todo está bien
   return (
-    <div className="flex h-screen bg-gray-100 font-sans">
-      {/* Sidebar Lateral */}
-      <aside className="w-64 bg-slate-800 text-white flex flex-col shadow-xl">
-        <div className="p-6 text-xl font-bold border-b border-slate-700 tracking-tight flex justify-between items-center">
-          <div>Gestión <span className="text-emerald-400">Aso</span></div>
-          <span className="text-[10px] bg-slate-700 px-2 py-1 rounded text-slate-300 uppercase">
-            {role}
-          </span>
+    <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
+      
+      {/* OVERLAY PARA MÓVIL (Se oscurece el fondo al abrir menú) */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* SIDEBAR (Responsivo + Hover PC) */}
+      <aside 
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`
+          fixed md:relative inset-y-0 left-0 z-50 bg-slate-800 text-white flex flex-col shadow-xl transition-all duration-300 ease-in-out
+          ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
+          ${!isMobileMenuOpen && !isHovered ? 'md:w-20' : 'md:w-64'}
+        `}
+      >
+        <div className="p-6 h-20 text-xl font-bold border-b border-slate-700 flex items-center justify-between whitespace-nowrap overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="min-w-[32px] h-8 bg-emerald-500 rounded flex items-center justify-center text-white text-sm">A</div>
+            <span className={`transition-opacity duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
+              Gestión <span className="text-emerald-400">Aso</span>
+            </span>
+          </div>
+          <button className="md:hidden" onClick={() => setIsMobileMenuOpen(false)}>
+            <X size={20} />
+          </button>
         </div>
         
-        <nav className="flex-1 p-4 space-y-2 text-sm">
-          <Link to="/dashboard" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors">
-            <LayoutDashboard size={18} /> Dashboard
+        <nav className="flex-1 p-4 space-y-2 text-sm overflow-y-auto overflow-x-hidden scrollbar-hide">
+          <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors">
+            <LayoutDashboard size={20} className="min-w-[20px]" />
+            <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
+              Dashboard
+            </span>
           </Link>
           
           {(role === "admin" || role === "cobrador") && (
             <>
-              <Link to="/impuestos" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors">
-                <ReceiptText size={18} /> Recaudación
+              <Link to="/impuestos" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors">
+                <ReceiptText size={20} className="min-w-[20px]" />
+                <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
+                  Recaudación
+                </span>
               </Link>
 
-              <Link to="/impuestos/historial" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors">
-                <ReceiptText size={18} /> Historial
+              <Link to="/impuestos/historial" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors">
+                <ReceiptText size={20} className="min-w-[20px]" />
+                <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
+                  Historial
+                </span>
               </Link>
             </>
           )}
 
           {role === "admin" && (
             <>
-              <div className="pt-4 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              <div className={`pt-4 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest ${(isHovered || isMobileMenuOpen) ? 'block' : 'hidden'}`}>
                 Administración
               </div>
               
-              <Link to="/nomina" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
-                <Users size={18} /> Nómina
+              <Link to="/nomina" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
+                <Users size={20} className="min-w-[20px]" />
+                <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
+                  Nómina
+                </span>
               </Link>
 
-              <Link to="/admin/locatarios" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
-                <Users size={18} /> B.D Locatarios
+              <Link to="/admin/locatarios" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
+                <Users size={20} className="min-w-[20px]" />
+                <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
+                  B.D Locatarios
+                </span>
               </Link>
 
-              <Link to="/usuarios" className="flex items-center gap-3 p-3 hover:bg-slate-700 rounded-lg transition-colors text-emerald-400 font-medium border-l-2 border-emerald-400 ml-1">
-                <UserCog size={18} /> Gestionar Usuarios
+              <Link to="/usuarios" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-emerald-400 font-medium">
+                <UserCog size={20} className="min-w-[20px]" />
+                <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
+                  Gestionar Usuarios
+                </span>
               </Link>
             </>
           )}
@@ -102,16 +146,30 @@ export default function MainLayout() {
         <div className="p-4 border-t border-slate-700">
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 p-3 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors font-bold"
+            className="w-full flex items-center gap-4 p-3 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors font-bold"
           >
-            <LogOut size={18} /> Cerrar Sesión
+            <LogOut size={20} className="min-w-[20px]" />
+            <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
+              Cerrar Sesión
+            </span>
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-8 bg-slate-50">
-        <Outlet />
-      </main>
+      {/* CONTENIDO PRINCIPAL */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Navbar superior para Móvil */}
+        <header className="md:hidden flex items-center justify-between p-4 bg-white border-b shadow-sm">
+          <div className="font-bold text-slate-800">Gestión <span className="text-emerald-500">Aso</span></div>
+          <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600">
+            <Menu size={24} />
+          </button>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

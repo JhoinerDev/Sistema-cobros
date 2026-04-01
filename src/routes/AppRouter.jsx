@@ -8,25 +8,39 @@ import GestionNomina from '../pages/nomina/GestionNomina';
 import UserManagement from '../pages/user/Usuarios';
 import AdminLocatarios from '../pages/admin/AdminLocatarios';
 import { AuthProvider, useAuth } from '../context/AuthContext'; 
+import { ShieldAlert, Loader2 } from 'lucide-react'; // Añadidos para mejorar la UI
 
 // --- COMPONENTE PROTECTOR ---
-// Este componente revisa si el usuario tiene permiso para ver la página
 const RoleGuard = ({ allowedRoles }) => {
   const { user, role, loading } = useAuth();
 
-  if (loading) return null; // Espera a que Firebase responda
+  // Pantalla de carga mientras Firebase verifica la sesión
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] w-full">
+        <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
+        <p className="text-slate-500 animate-pulse">Cargando permisos...</p>
+      </div>
+    );
+  }
+
   if (!user) return <Navigate to="/login" replace />;
   
-  // SOLUCIÓN AL BUCLE INFINITO:
-  // En lugar de redirigir, mostramos un mensaje en pantalla. 
-  // Esto evita que React colapse intentando redirigir infinitamente.
+  // Vista de error responsiva para acceso denegado
   if (!allowedRoles.includes(role)) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-white rounded-xl shadow-sm border border-slate-200 mt-10">
-        <h2 className="text-2xl font-bold text-red-500 mb-2">Acceso Restringido</h2>
-        <p className="text-slate-600">
-          Tu rol actual <strong className="uppercase">({role})</strong> no tiene permisos para acceder a esta ruta.
-        </p>
+      <div className="flex items-center justify-center min-h-[70vh] p-4">
+        <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl shadow-slate-200 border border-slate-100 max-w-md w-full text-center">
+          <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ShieldAlert className="text-red-500" size={40} />
+          </div>
+          <h2 className="text-2xl font-black text-slate-800 mb-2">Acceso Denegado</h2>
+          <p className="text-slate-500 leading-relaxed mb-6">
+            Tu nivel de acceso actual es <strong className="uppercase text-slate-700 font-bold">[{role}]</strong>. 
+            No tienes los permisos necesarios para ver esta sección.
+          </p>
+          <div className="h-1 w-20 bg-slate-100 mx-auto rounded-full"></div>
+        </div>
       </div>
     );
   }
@@ -39,20 +53,20 @@ export default function AppRouter() {
     <AuthProvider> 
       <BrowserRouter>
         <Routes>
-          {/* Ruta Pública */}
+          {/* Ruta Pública: El Login ya maneja su propia responsividad */}
           <Route path="/login" element={<Login />} />
 
-          {/* Rutas Privadas dentro del Layout */}
+          {/* Rutas Privadas dentro del Layout Responsivo */}
           <Route element={<MainLayout />}>
             
-            {/* 1. Rutas que AMBOS (Admin y Cobrador) pueden ver */}
+            {/* 1. Rutas para Admin y Cobrador */}
             <Route element={<RoleGuard allowedRoles={['admin', 'cobrador']} />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/impuestos" element={<GestionImpuestos />} />
               <Route path="/impuestos/historial" element={<HistorialPagos />} />
             </Route>
 
-            {/* 2. Rutas que SOLO el ADMIN puede ver */}
+            {/* 2. Rutas exclusivas de Administrador */}
             <Route element={<RoleGuard allowedRoles={['admin']} />}>
               <Route path="/nomina" element={<GestionNomina />} />
               <Route path="/usuarios" element={<UserManagement />} />
@@ -61,7 +75,7 @@ export default function AppRouter() {
 
           </Route>
 
-          {/* Redirección por defecto */}
+          {/* Redirección por defecto si la ruta no existe */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
