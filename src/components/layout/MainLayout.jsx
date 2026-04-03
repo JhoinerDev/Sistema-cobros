@@ -1,6 +1,6 @@
-import { useState } from 'react'; // Añadido para el control del menú
+import { useState } from 'react'; 
 import { useAuth } from '../../context/AuthContext';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, ReceiptText, Users, LogOut, 
   UserCog, AlertCircle, Loader2, Menu, X 
@@ -9,10 +9,12 @@ import {
 export default function MainLayout() {
   const { role, logout, loading, user } = useAuth(); 
   const navigate = useNavigate();
+  const location = useLocation(); // Añadido para detectar la ruta activa
   
-  // ESTADOS PARA RESPONSIVIDAD Y HOVER
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+
+  const normalizedRole = role?.toLowerCase();
 
   const handleLogout = async () => {
     try {
@@ -22,6 +24,9 @@ export default function MainLayout() {
       console.error("Error al cerrar sesión:", error);
     }
   };
+
+  // Función para cerrar menú móvil al hacer click
+  const closeMobile = () => setIsMobileMenuOpen(false);
 
   if (loading) {
     return (
@@ -42,7 +47,7 @@ export default function MainLayout() {
         </p>
         <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-slate-200 text-sm font-mono text-left">
           <p><strong>UID:</strong> {user?.uid}</p>
-          <p><strong>Sugerencia:</strong> Verifica que en Firestore exista un documento con este ID exacto dentro de la colección "usuarios".</p>
+          <p><strong>Sugerencia:</strong> Verifica que en Firestore exista un documento con este ID exacto dentro de la colección "users".</p>
         </div>
         <button 
           onClick={handleLogout}
@@ -57,15 +62,13 @@ export default function MainLayout() {
   return (
     <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
       
-      {/* OVERLAY PARA MÓVIL (Se oscurece el fondo al abrir menú) */}
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={closeMobile}
         />
       )}
 
-      {/* SIDEBAR (Responsivo + Hover PC) */}
       <aside 
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -77,34 +80,35 @@ export default function MainLayout() {
       >
         <div className="p-6 h-20 text-xl font-bold border-b border-slate-700 flex items-center justify-between whitespace-nowrap overflow-hidden">
           <div className="flex items-center gap-3">
-            <div className="min-w-[32px] h-8 bg-emerald-500 rounded flex items-center justify-center text-white text-sm">A</div>
+            <div className="min-w-[32px] h-8 bg-emerald-500 rounded flex items-center justify-center text-white text-sm font-black">A</div>
             <span className={`transition-opacity duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
               Gestión <span className="text-emerald-400">Aso</span>
             </span>
           </div>
-          <button className="md:hidden" onClick={() => setIsMobileMenuOpen(false)}>
+          <button className="md:hidden" onClick={closeMobile}>
             <X size={20} />
           </button>
         </div>
         
         <nav className="flex-1 p-4 space-y-2 text-sm overflow-y-auto overflow-x-hidden scrollbar-hide">
-          <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors">
+          {/* Dashboard siempre visible para admin y cobrador */}
+          <Link to="/dashboard" onClick={closeMobile} className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${location.pathname === '/dashboard' ? 'bg-emerald-600 text-white' : 'hover:bg-slate-700'}`}>
             <LayoutDashboard size={20} className="min-w-[20px]" />
             <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
               Dashboard
             </span>
           </Link>
           
-          {(role === "admin" || role === "cobrador") && (
+          {(normalizedRole === "admin" || normalizedRole === "cobrador") && (
             <>
-              <Link to="/impuestos" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors">
+              <Link to="/recaudacion" onClick={closeMobile} className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${location.pathname === '/recaudacion' ? 'bg-emerald-600 text-white' : 'hover:bg-slate-700'}`}>
                 <ReceiptText size={20} className="min-w-[20px]" />
                 <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
                   Recaudación
                 </span>
               </Link>
 
-              <Link to="/impuestos/historial" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors">
+              <Link to="/recaudacion/historial" onClick={closeMobile} className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${location.pathname === '/recaudacion/historial' ? 'bg-emerald-600 text-white' : 'hover:bg-slate-700'}`}>
                 <ReceiptText size={20} className="min-w-[20px]" />
                 <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
                   Historial
@@ -113,27 +117,27 @@ export default function MainLayout() {
             </>
           )}
 
-          {role === "admin" && (
+          {normalizedRole === "admin" && (
             <>
               <div className={`pt-4 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest ${(isHovered || isMobileMenuOpen) ? 'block' : 'hidden'}`}>
                 Administración
               </div>
               
-              <Link to="/nomina" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
+              <Link to="/nomina" onClick={closeMobile} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
                 <Users size={20} className="min-w-[20px]" />
                 <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
                   Nómina
                 </span>
               </Link>
 
-              <Link to="/admin/locatarios" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
+              <Link to="/admin/locatarios" onClick={closeMobile} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
                 <Users size={20} className="min-w-[20px]" />
                 <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
                   B.D Locatarios
                 </span>
               </Link>
 
-              <Link to="/usuarios" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-emerald-400 font-medium">
+              <Link to="/usuarios" onClick={closeMobile} className="flex items-center gap-4 p-3 hover:bg-slate-700 rounded-lg transition-colors text-emerald-400 font-medium">
                 <UserCog size={20} className="min-w-[20px]" />
                 <span className={`transition-all duration-300 ${(isHovered || isMobileMenuOpen) ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 md:hidden'}`}>
                   Gestionar Usuarios
@@ -156,9 +160,7 @@ export default function MainLayout() {
         </div>
       </aside>
 
-      {/* CONTENIDO PRINCIPAL */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Navbar superior para Móvil */}
         <header className="md:hidden flex items-center justify-between p-4 bg-white border-b shadow-sm">
           <div className="font-bold text-slate-800">Gestión <span className="text-emerald-500">Aso</span></div>
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600">

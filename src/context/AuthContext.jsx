@@ -14,24 +14,26 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      
       if (currentUser) {
+        setUser(currentUser);
         try {
-          const docRef = doc(db, "usuarios", currentUser.uid);
+          // 1. CORREGIDO: Ahora busca en la colección correcta "users"
+          const docRef = doc(db, "users", currentUser.uid);
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
+            // 2. IMPORTANTE: Asegúrate que en Firestore diga "role" y no "rol"
             setRole(docSnap.data().role); 
           } else {
             console.warn("No se encontró documento de usuario en Firestore.");
-            setRole('usuario'); 
+            setRole(null); // Si no hay documento, no tiene rol
           }
         } catch (error) {
           console.error("Error al obtener el rol de Firestore:", error);
           setRole(null);
         }
       } else {
+        setUser(null);
         setRole(null);
       }
       
@@ -42,7 +44,6 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{ user, role, logout, loading }}>
-      {/* Solo renderizamos la app cuando termine de cargar el estado de auth */}
       {!loading && children}
     </AuthContext.Provider>
   );

@@ -8,13 +8,12 @@ import GestionNomina from '../pages/nomina/GestionNomina';
 import UserManagement from '../pages/user/Usuarios';
 import AdminLocatarios from '../pages/admin/AdminLocatarios';
 import { AuthProvider, useAuth } from '../context/AuthContext'; 
-import { ShieldAlert, Loader2 } from 'lucide-react'; // Añadidos para mejorar la UI
+import { ShieldAlert, Loader2 } from 'lucide-react';
 
-// --- COMPONENTE PROTECTOR ---
+// --- COMPONENTE PROTECTOR ACTUALIZADO ---
 const RoleGuard = ({ allowedRoles }) => {
   const { user, role, loading } = useAuth();
 
-  // Pantalla de carga mientras Firebase verifica la sesión
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] w-full">
@@ -26,8 +25,9 @@ const RoleGuard = ({ allowedRoles }) => {
 
   if (!user) return <Navigate to="/login" replace />;
   
-  // Vista de error responsiva para acceso denegado
-  if (!allowedRoles.includes(role)) {
+  const userRole = role?.toLowerCase();
+
+  if (!allowedRoles.includes(userRole)) {
     return (
       <div className="flex items-center justify-center min-h-[70vh] p-4">
         <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl shadow-slate-200 border border-slate-100 max-w-md w-full text-center">
@@ -53,20 +53,20 @@ export default function AppRouter() {
     <AuthProvider> 
       <BrowserRouter>
         <Routes>
-          {/* Ruta Pública: El Login ya maneja su propia responsividad */}
           <Route path="/login" element={<Login />} />
 
-          {/* Rutas Privadas dentro del Layout Responsivo */}
           <Route element={<MainLayout />}>
             
-            {/* 1. Rutas para Admin y Cobrador */}
+            {/* Rutas para Admin y Cobrador - AHORA COINCIDEN CON EL SIDEBAR */}
             <Route element={<RoleGuard allowedRoles={['admin', 'cobrador']} />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/impuestos" element={<GestionImpuestos />} />
-              <Route path="/impuestos/historial" element={<HistorialPagos />} />
+              {/* CAMBIADO: De /impuestos a /recaudacion */}
+              <Route path="/recaudacion" element={<GestionImpuestos />} />
+              {/* CAMBIADO: De /impuestos/historial a /recaudacion/historial */}
+              <Route path="/recaudacion/historial" element={<HistorialPagos />} />
             </Route>
 
-            {/* 2. Rutas exclusivas de Administrador */}
+            {/* Rutas exclusivas de Administrador */}
             <Route element={<RoleGuard allowedRoles={['admin']} />}>
               <Route path="/nomina" element={<GestionNomina />} />
               <Route path="/usuarios" element={<UserManagement />} />
@@ -75,7 +75,7 @@ export default function AppRouter() {
 
           </Route>
 
-          {/* Redirección por defecto si la ruta no existe */}
+          {/* Redirección por defecto */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>

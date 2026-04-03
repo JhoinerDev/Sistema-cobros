@@ -1,10 +1,14 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, signOut } from "firebase/auth"; // Añadimos estos helpers
+import { 
+  getAuth, 
+  onAuthStateChanged, 
+  signOut, 
+  setPersistence, 
+  browserLocalPersistence 
+} from "firebase/auth"; 
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-
-// Estos datos los sacas de la configuración de tu proyecto en Firebase Console
 const firebaseConfig = {
   apiKey: "AIzaSyCdO7sdhX9FPFXMtui-g2OcIC84_8XjbK4",
   authDomain: "app-cobros-8b231.firebaseapp.com",
@@ -17,21 +21,27 @@ const firebaseConfig = {
 // Inicializamos la App
 const app = initializeApp(firebaseConfig);
 
-// EXPORTAMOS los servicios
+// Inicializamos los servicios
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-
-// --- AÑADIDOS PARA EL SISTEMA DE COBROS ---
+// --- CONFIGURACIÓN DE SEGURIDAD Y PWA ---
 
 /**
- * Función para cerrar sesión fácilmente desde cualquier parte
+ * Forzamos que la sesión se guarde localmente.
+ * Esto es VITAL para la PWA: permite que el cobrador cierre la app 
+ * y al volver a entrar siga logueado sin internet.
+ */
+setPersistence(auth, browserLocalPersistence);
+
+/**
+ * Función para cerrar sesión fácilmente
  */
 export const logout = () => signOut(auth);
 
 /**
- * Escucha cambios en la sesión (Útil para proteger el MainLayout)
+ * Escucha cambios en la sesión
  */
 export const observeAuthState = (callback) => onAuthStateChanged(auth, callback);
 

@@ -2,17 +2,23 @@ import { useState, useEffect } from 'react';
 import { UserPlus, X, UserCog, Trash2, CheckCircle2 } from 'lucide-react';
 // --- IMPORTACIONES DE FIREBASE ---
 import { db, auth } from '../../services/firebase'; 
-import { collection, addDoc, onSnapshot, query, deleteDoc, doc, setDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, onSnapshot, query, deleteDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+
+// Función de validación de formato de correo
+const validarEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+};
 
 export default function UserManagement() {
   const [showModal, setShowModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ show: false, userId: null });
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'Cobrador' });
-  const [users, setUsers] = useState([]); // Ahora empieza vacío
+  const [users, setUsers] = useState([]); 
   const [cargando, setCargando] = useState(false);
 
-  // --- LEER USUARIOS EN TIEMPO REAL DESDE FIREBASE ---
+  // --- LEER USUARIOS EN TIEMPO REAL ---
   useEffect(() => {
     const q = query(collection(db, "users"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -27,7 +33,6 @@ export default function UserManagement() {
 
   const confirmDelete = (id) => setDeleteModal({ show: true, userId: id });
 
-  // --- ELIMINAR USUARIO DE FIRESTORE ---
   const executeDelete = async () => {
     try {
       await deleteDoc(doc(db, "users", deleteModal.userId));
@@ -37,30 +42,55 @@ export default function UserManagement() {
     }
   };
 
-  // --- CREAR USUARIO EN AUTH Y FIRESTORE ---
+  // --- LÓGICA DE CREACIÓN CON VALIDACIONES ---
   const handleCreateUser = async (e) => {
     e.preventDefault();
+
+    // 1. Validación de Formato de Email
+    if (!validarEmail(newUser.email)) {
+      alert("⚠️ El formato del correo no es válido. Ejemplo: usuario@dominio.com");
+      return;
+    }
+
+    // 2. Validación de Contraseña (Mínimo 6 caracteres por regla de Firebase)
+    if (newUser.password.length < 6) {
+      alert("⚠️ La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
     setCargando(true);
+    
     try {
-      // 1. Crear en Firebase Authentication (Acceso)
-      // Nota: Esto deslogueará al admin actual a menos que uses una Cloud Function,
-      // pero para la fase inicial de desarrollo lo haremos así o vía Firestore.
-      // RECOMENDACIÓN: Por ahora lo guardaremos en Firestore y el Admin los invita.
-      
-      const userRef = await addDoc(collection(db, "users"), {
+      // 3. Creamos el usuario en Authentication
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        newUser.email, 
+        newUser.password
+      );
+      const user = userCredential.user;
+
+      // 4. Guardamos sus datos y ROL en Firestore usando su UID como ID de documento
+      await setDoc(doc(db, "users", user.uid), {
         name: newUser.name,
         email: newUser.email,
-        role: newUser.role,
+        role: newUser.role, 
         status: 'Activo',
-        createdAt: new Date()
+        createdAt: serverTimestamp()
       });
 
+      alert("✅ Usuario registrado exitosamente.");
       setShowModal(false);
       setNewUser({ name: '', email: '', password: '', role: 'Cobrador' });
-      alert("Usuario registrado en la base de datos");
+      
     } catch (error) {
       console.error(error);
-      alert("Error: " + error.message);
+      if (error.code === 'auth/email-already-in-use') {
+        alert("❌ Este correo ya está registrado.");
+      } else if (error.code === 'auth/invalid-email') {
+        alert("❌ Correo electrónico inválido.");
+      } else {
+        alert("❌ Error: " + error.message);
+      }
     } finally {
       setCargando(false);
     }
@@ -68,7 +98,7 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6 pb-10">
-      {/* --- ENCABEZADO (Igual) --- */}
+      {/* --- ENCABEZADO --- */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Gestión de Usuarios</h2>
@@ -82,7 +112,7 @@ export default function UserManagement() {
         </button>
       </div>
 
-      {/* --- TABLA (Conexión a Firebase) --- */}
+      {/* --- TABLA --- */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -105,7 +135,7 @@ export default function UserManagement() {
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-black text-slate-700 uppercase tracking-tight">{user.name}</span>
-                        <span className="text-[10px] text-slate-400 font-bold truncate max-w-[140px] sm:max-w-none mb-1">
+                        <span className="text-[10px] text-slate-400 font-bold truncate max-w-[140px] mb-1">
                           {user.email}
                         </span>
                         <div className="flex items-center gap-2 md:hidden">
@@ -153,7 +183,7 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {/* --- MODAL REGISTRO (Actualizado) --- */}
+      {/* --- MODAL REGISTRO --- */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-md p-0 sm:p-4">
           <div className="bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-md shadow-2xl animate-in slide-in-from-bottom duration-300">
@@ -197,7 +227,7 @@ export default function UserManagement() {
                 <button 
                   type="submit"
                   disabled={cargando}
-                  className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] mt-4 active:scale-95 transition-all disabled:opacity-50"
+                  className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] mt-4 active:scale-95 transition-all disabled:opacity-50 shadow-xl shadow-slate-200"
                 >
                   {cargando ? "Registrando..." : "Confirmar Registro"}
                 </button>
@@ -207,7 +237,7 @@ export default function UserManagement() {
         </div>
       )}
 
-      {/* --- MODAL ELIMINAR (Igual) --- */}
+      {/* --- MODAL ELIMINAR --- */}
       {deleteModal.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center animate-in zoom-in duration-200">
@@ -215,9 +245,10 @@ export default function UserManagement() {
               <Trash2 size={32} />
             </div>
             <h2 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tighter">¿Eliminar acceso?</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-relaxed px-4">Esta acción quitará el permiso de entrada al sistema inmediatamente.</p>
             <div className="flex gap-3 mt-8">
               <button onClick={() => setDeleteModal({ show: false, userId: null })} className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400">Cancelar</button>
-              <button onClick={executeDelete} className="flex-1 bg-rose-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest">Eliminar</button>
+              <button onClick={executeDelete} className="flex-1 bg-rose-500 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-100">Eliminar</button>
             </div>
           </div>
         </div>
