@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-// Añadimos writeBatch para la carga masiva
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, writeBatch } from 'firebase/firestore';
 import { UserPlus, Search, Edit2, Trash2, X, Loader2, Database, FileText, Upload } from 'lucide-react';
-import Papa from 'papaparse'; // IMPORTANTE: Debes tener instalado papaparse (npm install papaparse)
+import Papa from 'papaparse'; 
 
 // Importa la función del PDF
 import { imprimirPlanillaNomina } from '../../services/reports/NominaReport';
@@ -40,7 +39,7 @@ export default function AdminLocatarios() {
     setCargando(true);
 
     Papa.parse(archivo, {
-      header: true, // Usa la primera fila del excel como títulos (nombre, cedula, puesto)
+      header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         const batch = writeBatch(db);
@@ -49,7 +48,6 @@ export default function AdminLocatarios() {
 
         try {
           nuevosDatos.forEach((fila) => {
-            // Validamos que la fila tenga los datos necesarios antes de subir
             if (fila.nombre && fila.cedula && fila.puesto) {
               const nuevoDocRef = doc(collection(db, "locatarios"));
               batch.set(nuevoDocRef, {
@@ -65,7 +63,7 @@ export default function AdminLocatarios() {
           if (contador > 0) {
             await batch.commit();
             alert(`¡Éxito! Se han cargado ${contador} locatarios al censo.`);
-            obtenerLocatarios(); // Refrescar tabla
+            obtenerLocatarios();
           } else {
             alert("No se encontraron datos válidos en el archivo. Revisa los encabezados (nombre, cedula, puesto).");
           }
@@ -74,12 +72,13 @@ export default function AdminLocatarios() {
           alert("Hubo un problema al subir los datos.");
         } finally {
           setCargando(false);
-          event.target.value = ""; // Limpiar input
+          event.target.value = ""; 
         }
       }
     });
   };
 
+  // --- LÓGICA: CREAR Y EDITAR ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setCargando(true);
@@ -99,7 +98,8 @@ export default function AdminLocatarios() {
       cancelarEdicion();
       obtenerLocatarios();
     } catch (error) {
-      alert("Hubo un error al guardar los datos");
+      console.error("Error al guardar:", error);
+      alert("Hubo un error al guardar los datos en la base de datos.");
     } finally {
       setCargando(false);
     }
@@ -110,10 +110,21 @@ export default function AdminLocatarios() {
     setEditandoId(null);
   };
 
+  // --- LÓGICA: ELIMINAR (Mejorada con manejo de errores) ---
   const eliminarLocatario = async (id) => {
-    if (window.confirm("¿Seguro que deseas eliminar este locatario?")) {
-      await deleteDoc(doc(db, "locatarios", id));
-      obtenerLocatarios();
+    const confirmacion = window.confirm("⚠️ ¿Estás completamente seguro de eliminar este registro? Esta acción no se puede deshacer.");
+    
+    if (confirmacion) {
+      setCargando(true);
+      try {
+        await deleteDoc(doc(db, "locatarios", id));
+        obtenerLocatarios(); // Refresca la tabla automáticamente
+      } catch (error) {
+        console.error("Error al eliminar:", error);
+        alert("Hubo un problema al intentar eliminar el registro.");
+      } finally {
+        setCargando(false);
+      }
     }
   };
 
@@ -125,7 +136,7 @@ export default function AdminLocatarios() {
 
   return (
     <div className="space-y-6">
-      {/* Cabecera Adaptable */}
+      {/* Cabecera */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Censo de Locatarios</h2>
@@ -133,7 +144,6 @@ export default function AdminLocatarios() {
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           
-          {/* BOTÓN IMPORTAR CSV */}
           <div className="flex-1 sm:flex-none">
             <input 
               type="file" 
@@ -151,7 +161,6 @@ export default function AdminLocatarios() {
             </label>
           </div>
 
-          {/* BOTÓN PARA GENERAR PDF */}
           <button 
             onClick={() => imprimirPlanillaNomina(locatariosFiltrados)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-sm hover:bg-slate-800 transition-colors active:scale-95"
@@ -169,10 +178,10 @@ export default function AdminLocatarios() {
         </div>
       </div>
 
-      {/* --- FORMULARIO DINÁMICO --- */}
+      {/* FORMULARIO */}
       <form 
         onSubmit={handleSubmit} 
-        className="bg-white p-5 md:p-7 rounded-[2rem] shadow-sm border border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end transition-all"
+        className={`bg-white p-5 md:p-7 rounded-[2rem] shadow-sm border grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end transition-all duration-300 ${editandoId ? 'border-amber-300 shadow-amber-100' : 'border-slate-100'}`}
       >
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cédula / RIF</label>
@@ -213,17 +222,19 @@ export default function AdminLocatarios() {
             type="submit" 
             disabled={cargando}
             className={`flex-1 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 text-white shadow-lg active:scale-95 ${
-              editandoId ? 'bg-amber-500 shadow-amber-100' : 'bg-emerald-600 shadow-emerald-100'
+              editandoId ? 'bg-amber-500 shadow-amber-200 hover:bg-amber-600' : 'bg-emerald-600 shadow-emerald-200 hover:bg-emerald-700'
             }`}
           >
-            {editandoId ? <Edit2 size={16}/> : <UserPlus size={16}/>}
+            {cargando ? <Loader2 size={16} className="animate-spin" /> : (editandoId ? <Edit2 size={16}/> : <UserPlus size={16}/>)}
             {editandoId ? "Actualizar" : "Añadir"}
           </button>
           
           {editandoId && (
             <button 
+              type="button"
               onClick={cancelarEdicion}
-              className="px-4 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200 transition-colors"
+              title="Cancelar edición"
+              className="px-4 bg-slate-100 text-slate-500 rounded-2xl hover:bg-slate-200 hover:text-slate-700 transition-colors"
             >
               <X size={20}/>
             </button>
@@ -231,7 +242,7 @@ export default function AdminLocatarios() {
         </div>
       </form>
 
-      {/* --- LISTADO DE REGISTROS --- */}
+      {/* LISTADO DE REGISTROS */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-5 border-b border-slate-50 bg-slate-50/30">
           <div className="relative w-full">
@@ -258,9 +269,9 @@ export default function AdminLocatarios() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {locatariosFiltrados.map((l) => (
-                <tr key={l.id} className="hover:bg-slate-50/50 transition-colors group">
+                <tr key={l.id} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="px-6 py-4 font-black text-emerald-600">
-                    <span className="bg-emerald-50 px-2.5 py-1 rounded-lg">{l.puesto}</span>
+                    <span className="bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">{l.puesto}</span>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-slate-700">{l.nombre}</p>
@@ -268,16 +279,22 @@ export default function AdminLocatarios() {
                   </td>
                   <td className="px-6 py-4 text-xs text-slate-400 font-mono hidden md:table-cell">{l.cedula}</td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end gap-2">
                       <button 
-                        onClick={() => { setForm(l); setEditandoId(l.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        className="p-2.5 text-amber-500 hover:bg-amber-50 rounded-xl transition-all active:scale-90"
+                        onClick={() => { 
+                          setForm({ nombre: l.nombre, cedula: l.cedula, puesto: l.puesto }); 
+                          setEditandoId(l.id); 
+                          window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                        }}
+                        title="Editar locatario"
+                        className="p-2.5 text-amber-500 bg-transparent hover:bg-amber-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-amber-100"
                       >
                         <Edit2 size={16}/>
                       </button>
                       <button 
                         onClick={() => eliminarLocatario(l.id)}
-                        className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-90"
+                        title="Eliminar locatario"
+                        className="p-2.5 text-rose-500 bg-transparent hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100"
                       >
                         <Trash2 size={16}/>
                       </button>
@@ -291,7 +308,7 @@ export default function AdminLocatarios() {
           {locatariosFiltrados.length === 0 && !cargando && (
             <div className="text-center py-20 text-slate-300">
               <Search className="mx-auto mb-3 opacity-20" size={48} />
-              <p className="text-sm italic">No se encontraron resultados para la búsqueda.</p>
+              <p className="text-sm italic font-medium">No se encontraron resultados para la búsqueda.</p>
             </div>
           )}
         </div>
