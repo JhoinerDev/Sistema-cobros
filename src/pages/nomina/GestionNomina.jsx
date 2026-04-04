@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Users, DollarSign, AlertCircle, Eye, Plus, 
   Search, X, CheckCircle2, Clock, CreditCard, 
-  Calendar, FileText, Loader2 
+  Calendar, FileText, Loader2, Edit2, Trash2 
 } from 'lucide-react';
 import { 
   suscribirAEmpleados, 
@@ -11,16 +11,24 @@ import {
 } from '../../services/nominaService';
 import { imprimirPlanillaNomina } from '../../services/reports/NominaReport';
 
+// Importaciones directas de Firebase para editar y eliminar
+import { db } from '../../services/firebase';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+
 export default function GestionNomina() {
   const [empleados, setEmpleados] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
   
-  const [nuevoEmpleado, setNuevoEmpleado] = useState({
+  // Estados para el Modal y Edición
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [form, setForm] = useState({
     nombre: '',
     cedula: '',
     cargo: '',
+    salario: '',
+    fechaIngreso: '',
     estado: 'Pendiente'
   });
 
@@ -37,18 +45,56 @@ export default function GestionNomina() {
     await actualizarEstadoEmpleado(id, nuevoEstado);
   };
 
+  const cerrarModal = () => {
+    setIsModalOpen(false);
+    setEditandoId(null);
+    setForm({ nombre: '', cedula: '', cargo: '', salario: '', fechaIngreso: '', estado: 'Pendiente' });
+  };
+
+  // --- LÓGICA: CREAR Y EDITAR ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await agregarEmpleado(nuevoEmpleado);
-      setIsModalOpen(false);
-      setNuevoEmpleado({ 
-        nombre: '', cedula: '', cargo: '', 
-        salario: '', fechaIngreso: '', estado: 'Pendiente' 
-      });
+      if (editandoId) {
+        // Actualizar registro existente (Verifica que tu colección se llame 'empleados')
+        await updateDoc(doc(db, "empleados", editandoId), form);
+      } else {
+        // Usar tu servicio para agregar uno nuevo
+        await agregarEmpleado(form);
+      }
+      cerrarModal();
     } catch (error) {
       console.error("Error al guardar:", error);
+      alert("Hubo un error al guardar los datos del empleado.");
     }
+  };
+
+  // --- LÓGICA: ELIMINAR ---
+  const eliminarRegistro = async (id) => {
+    const confirmar = window.confirm("⚠️ ¿Estás seguro de eliminar a este empleado? Esta acción no se puede deshacer.");
+    if (confirmar) {
+      try {
+        // Verifica que tu colección se llame 'empleados'
+        await deleteDoc(doc(db, "empleados", id));
+      } catch (error) {
+        console.error("Error al eliminar:", error);
+        alert("Hubo un problema al intentar eliminar el registro.");
+      }
+    }
+  };
+
+  // --- ABRIR MODAL PARA EDITAR ---
+  const abrirModalEditar = (empleado) => {
+    setForm({
+      nombre: empleado.nombre,
+      cedula: empleado.cedula,
+      cargo: empleado.cargo,
+      salario: empleado.salario || '',
+      fechaIngreso: empleado.fechaIngreso || '',
+      estado: empleado.estado || 'Pendiente'
+    });
+    setEditandoId(empleado.id);
+    setIsModalOpen(true);
   };
 
   const empleadosFiltrados = empleados.filter((emp) => 
@@ -87,7 +133,7 @@ export default function GestionNomina() {
           </button>
 
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { cerrarModal(); setIsModalOpen(true); }}
             className="flex-[2] md:flex-none bg-slate-900 text-white px-5 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-slate-200"
           >
             <Plus size={18} /> Nuevo Empleado
@@ -95,7 +141,7 @@ export default function GestionNomina() {
         </div>
       </div>
 
-      {/* --- TARJETAS DE RESUMEN (Grid dinámico) --- */}
+      {/* --- TARJETAS DE RESUMEN --- */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-4">
           <div className="p-3 rounded-2xl bg-blue-50 text-blue-600"><Users size={24} /></div>
@@ -149,14 +195,13 @@ export default function GestionNomina() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {empleadosFiltrados.map((empleado) => (
-                <tr key={empleado.id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={empleado.id} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-slate-800">{empleado.nombre}</span>
                       <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">
                         {empleado.cargo} • <span className="font-mono">V-{empleado.cedula}</span>
                       </span>
-                      {/* En móvil mostramos el salario aquí abajo */}
                       <span className="text-emerald-600 font-black text-xs md:hidden mt-1">
                         ${Number(empleado.salario).toLocaleString('es-VE')}
                       </span>
@@ -181,10 +226,24 @@ export default function GestionNomina() {
                     </button>
                   </td>
 
+                  {/* NUEVOS BOTONES DE ACCIÓN */}
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all">
-                      <Eye size={20} />
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => abrirModalEditar(empleado)}
+                        title="Editar empleado"
+                        className="p-2.5 text-amber-500 bg-transparent hover:bg-amber-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-amber-100"
+                      >
+                        <Edit2 size={16}/>
+                      </button>
+                      <button 
+                        onClick={() => eliminarRegistro(empleado.id)}
+                        title="Eliminar empleado"
+                        className="p-2.5 text-rose-500 bg-transparent hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100"
+                      >
+                        <Trash2 size={16}/>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -193,13 +252,15 @@ export default function GestionNomina() {
         </div>
       </div>
 
-      {/* --- MODAL RESPONSIVA (TIPO SHEET EN MÓVIL) --- */}
+      {/* --- MODAL RESPONSIVA --- */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
           <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in">
             <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">Nuevo Empleado</h3>
-              <button onClick={() => setIsModalOpen(false)} className="bg-white p-2 rounded-full shadow-sm text-slate-400"><X size={20} /></button>
+              <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">
+                {editandoId ? 'Editar Empleado' : 'Nuevo Empleado'}
+              </h3>
+              <button type="button" onClick={cerrarModal} className="bg-white p-2 rounded-full shadow-sm text-slate-400 hover:text-slate-700 transition-colors"><X size={20} /></button>
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-4">
@@ -209,8 +270,8 @@ export default function GestionNomina() {
                   <input 
                     required type="number"
                     className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    value={nuevoEmpleado.cedula}
-                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, cedula: e.target.value})}
+                    value={form.cedula}
+                    onChange={(e) => setForm({...form, cedula: e.target.value})}
                   />
                 </div>
                 <div className="space-y-1">
@@ -218,8 +279,8 @@ export default function GestionNomina() {
                   <input 
                     required 
                     className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    value={nuevoEmpleado.nombre}
-                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, nombre: e.target.value})}
+                    value={form.nombre}
+                    onChange={(e) => setForm({...form, nombre: e.target.value})}
                   />
                 </div>
               </div>
@@ -230,8 +291,8 @@ export default function GestionNomina() {
                   <input 
                     required 
                     className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    value={nuevoEmpleado.cargo}
-                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, cargo: e.target.value})}
+                    value={form.cargo}
+                    onChange={(e) => setForm({...form, cargo: e.target.value})}
                   />
                 </div>
                 <div className="space-y-1">
@@ -239,8 +300,8 @@ export default function GestionNomina() {
                   <input 
                     required type="number"
                     className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-emerald-600"
-                    value={nuevoEmpleado.salario}
-                    onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, salario: e.target.value})}
+                    value={form.salario}
+                    onChange={(e) => setForm({...form, salario: e.target.value})}
                   />
                 </div>
               </div>
@@ -250,13 +311,18 @@ export default function GestionNomina() {
                 <input 
                   required type="date"
                   className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                  value={nuevoEmpleado.fechaIngreso}
-                  onChange={(e) => setNuevoEmpleado({...nuevoEmpleado, fechaIngreso: e.target.value})}
+                  value={form.fechaIngreso}
+                  onChange={(e) => setForm({...form, fechaIngreso: e.target.value})}
                 />
               </div>
 
-              <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black shadow-xl shadow-slate-200 transition-all active:scale-95 mt-4 uppercase text-xs tracking-widest">
-                Confirmar Registro
+              <button 
+                type="submit" 
+                className={`w-full text-white font-black py-4 rounded-2xl shadow-xl shadow-slate-200 transition-all active:scale-95 mt-4 uppercase text-xs tracking-widest ${
+                  editandoId ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-slate-900 hover:bg-black'
+                }`}
+              >
+                {editandoId ? 'Actualizar Datos' : 'Confirmar Registro'}
               </button>
             </form>
           </div>
