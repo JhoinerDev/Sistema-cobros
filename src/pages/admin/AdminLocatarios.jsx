@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
-import { UserPlus, Search, Edit2, Trash2, X, Loader2, Database } from 'lucide-react';
+// Añadimos writeBatch para la carga masiva
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, writeBatch } from 'firebase/firestore';
+import { UserPlus, Search, Edit2, Trash2, X, Loader2, Database, FileText, Upload } from 'lucide-react';
+import Papa from 'papaparse'; // IMPORTANTE: Debes tener instalado papaparse (npm install papaparse)
+
+// Importa la función del PDF
+import { imprimirPlanillaNomina } from '../../services/reports/NominaReport';
 
 export default function AdminLocatarios() {
   const [locatarios, setLocatarios] = useState([]);
@@ -26,6 +31,54 @@ export default function AdminLocatarios() {
   };
 
   useEffect(() => { obtenerLocatarios(); }, []);
+
+  // --- LÓGICA DE IMPORTACIÓN MASIVA ---
+  const manejarImportacionCSV = (event) => {
+    const archivo = event.target.files[0];
+    if (!archivo) return;
+
+    setCargando(true);
+
+    Papa.parse(archivo, {
+      header: true, // Usa la primera fila del excel como títulos (nombre, cedula, puesto)
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const batch = writeBatch(db);
+        const nuevosDatos = results.data;
+        let contador = 0;
+
+        try {
+          nuevosDatos.forEach((fila) => {
+            // Validamos que la fila tenga los datos necesarios antes de subir
+            if (fila.nombre && fila.cedula && fila.puesto) {
+              const nuevoDocRef = doc(collection(db, "locatarios"));
+              batch.set(nuevoDocRef, {
+                nombre: fila.nombre.trim(),
+                cedula: fila.cedula.trim(),
+                puesto: fila.puesto.trim().toUpperCase(),
+                fechaRegistro: new Date()
+              });
+              contador++;
+            }
+          });
+
+          if (contador > 0) {
+            await batch.commit();
+            alert(`¡Éxito! Se han cargado ${contador} locatarios al censo.`);
+            obtenerLocatarios(); // Refrescar tabla
+          } else {
+            alert("No se encontraron datos válidos en el archivo. Revisa los encabezados (nombre, cedula, puesto).");
+          }
+        } catch (error) {
+          console.error("Error en batch:", error);
+          alert("Hubo un problema al subir los datos.");
+        } finally {
+          setCargando(false);
+          event.target.value = ""; // Limpiar input
+        }
+      }
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -65,9 +118,9 @@ export default function AdminLocatarios() {
   };
 
   const locatariosFiltrados = locatarios.filter(l => 
-    l.nombre.toLowerCase().includes(busqueda.toLowerCase()) || 
-    l.puesto.toLowerCase().includes(busqueda.toLowerCase()) ||
-    l.cedula.includes(busqueda)
+    l.nombre?.toLowerCase().includes(busqueda.toLowerCase()) || 
+    l.puesto?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    l.cedula?.includes(busqueda)
   );
 
   return (
@@ -78,10 +131,41 @@ export default function AdminLocatarios() {
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Censo de Locatarios</h2>
           <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Base de Datos Maestra</p>
         </div>
-        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
-          <Database size={16} className="text-emerald-500" />
-          <span className="text-xs font-bold text-slate-600">{locatariosFiltrados.length} Registros</span>
-          {cargando && <Loader2 className="animate-spin text-emerald-500 ml-2" size={16} />}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          
+          {/* BOTÓN IMPORTAR CSV */}
+          <div className="flex-1 sm:flex-none">
+            <input 
+              type="file" 
+              accept=".csv" 
+              onChange={manejarImportacionCSV} 
+              className="hidden" 
+              id="csv-input" 
+            />
+            <label 
+              htmlFor="csv-input"
+              className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2.5 rounded-2xl cursor-pointer hover:bg-emerald-100 transition-all active:scale-95 text-xs font-bold uppercase tracking-wider"
+            >
+              <Upload size={16} />
+              <span>Importar CSV</span>
+            </label>
+          </div>
+
+          {/* BOTÓN PARA GENERAR PDF */}
+          <button 
+            onClick={() => imprimirPlanillaNomina(locatariosFiltrados)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-sm hover:bg-slate-800 transition-colors active:scale-95"
+            disabled={cargando || locatariosFiltrados.length === 0}
+          >
+            <FileText size={16} />
+            <span className="text-xs font-bold uppercase tracking-wider">Planilla PDF</span>
+          </button>
+
+          <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm w-full sm:w-auto justify-center">
+            <Database size={16} className="text-emerald-500" />
+            <span className="text-xs font-bold text-slate-600">{locatariosFiltrados.length} Registros</span>
+            {cargando && <Loader2 className="animate-spin text-emerald-500 ml-2" size={16} />}
+          </div>
         </div>
       </div>
 

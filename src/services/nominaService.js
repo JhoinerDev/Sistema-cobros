@@ -38,3 +38,5 @@ export const actualizarEstadoEmpleado = async (id, nuevoEstado) => {
     console.error("Error al actualizar estado:", error);
   }
 };
+
+

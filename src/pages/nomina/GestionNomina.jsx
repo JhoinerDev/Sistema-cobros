@@ -9,7 +9,7 @@ import {
   agregarEmpleado, 
   actualizarEstadoEmpleado 
 } from '../../services/nominaService';
-import { imprimirPlanillaRecaudacion } from '../../services/recaudacionService';
+import { imprimirPlanillaNomina } from '../../services/reports/NominaReport';
 
 export default function GestionNomina() {
   const [empleados, setEmpleados] = useState([]);
@@ -21,8 +21,6 @@ export default function GestionNomina() {
     nombre: '',
     cedula: '',
     cargo: '',
-    salario: '',
-    fechaIngreso: '',
     estado: 'Pendiente'
   });
 
@@ -82,7 +80,7 @@ export default function GestionNomina() {
         </div>
         <div className="flex gap-2 w-full md:w-auto">
           <button 
-            onClick={() => imprimirPlanillaRecaudacion(empleadosFiltrados)}
+            onClick={() => imprimirPlanillaNomina(empleadosFiltrados)}
             className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-4 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
           >
             <FileText size={16} /> <span className="hidden sm:inline">PDF</span>
