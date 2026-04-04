@@ -11,7 +11,7 @@ import {
 } from '../../services/nominaService';
 import { imprimirPlanillaNomina } from '../../services/reports/NominaReport';
 
-// Importaciones directas de Firebase para editar y eliminar
+// Importaciones directas de Firebase
 import { db } from '../../services/firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
@@ -20,7 +20,7 @@ export default function GestionNomina() {
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   
-  // Estados para el Modal y Edición
+  // Estados para Modal de Formulario (Crear/Editar)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState({
@@ -31,6 +31,11 @@ export default function GestionNomina() {
     fechaIngreso: '',
     estado: 'Pendiente'
   });
+
+  // ESTADOS NUEVOS PARA LA MODAL DE ELIMINAR
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [idAEliminar, setIdAEliminar] = useState(null);
+  const [eliminandoCargando, setEliminandoCargando] = useState(false);
 
   useEffect(() => {
     const unsubscribe = suscribirAEmpleados((datos) => {
@@ -56,10 +61,8 @@ export default function GestionNomina() {
     e.preventDefault();
     try {
       if (editandoId) {
-        // Actualizar registro existente (Verifica que tu colección se llame 'empleados')
         await updateDoc(doc(db, "empleados", editandoId), form);
       } else {
-        // Usar tu servicio para agregar uno nuevo
         await agregarEmpleado(form);
       }
       cerrarModal();
@@ -69,17 +72,24 @@ export default function GestionNomina() {
     }
   };
 
-  // --- LÓGICA: ELIMINAR ---
-  const eliminarRegistro = async (id) => {
-    const confirmar = window.confirm("⚠️ ¿Estás seguro de eliminar a este empleado? Esta acción no se puede deshacer.");
-    if (confirmar) {
-      try {
-        // Verifica que tu colección se llame 'empleados'
-        await deleteDoc(doc(db, "empleados", id));
-      } catch (error) {
-        console.error("Error al eliminar:", error);
-        alert("Hubo un problema al intentar eliminar el registro.");
-      }
+  // --- LÓGICA: ELIMINAR (MODAL) ---
+  const abrirModalEliminar = (id) => {
+    setIdAEliminar(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmarEliminacion = async () => {
+    if (!idAEliminar) return;
+    setEliminandoCargando(true);
+    try {
+      await deleteDoc(doc(db, "empleados", idAEliminar));
+      setIsDeleteModalOpen(false);
+      setIdAEliminar(null);
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+      alert("No se pudo eliminar el registro.");
+    } finally {
+      setEliminandoCargando(false);
     }
   };
 
@@ -118,7 +128,7 @@ export default function GestionNomina() {
   return (
     <div className="space-y-6 pb-10">
       
-      {/* --- ENCABEZADO ADAPTABLE --- */}
+      {/* --- ENCABEZADO --- */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">Gestión de Nómina</h1>
@@ -168,7 +178,7 @@ export default function GestionNomina() {
         </div>
       </div>
 
-      {/* --- TABLA OPTIMIZADA --- */}
+      {/* --- TABLA --- */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-5 border-b border-slate-50 bg-slate-50/30">
           <div className="relative w-full">
@@ -202,9 +212,6 @@ export default function GestionNomina() {
                       <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">
                         {empleado.cargo} • <span className="font-mono">V-{empleado.cedula}</span>
                       </span>
-                      <span className="text-emerald-600 font-black text-xs md:hidden mt-1">
-                        ${Number(empleado.salario).toLocaleString('es-VE')}
-                      </span>
                     </div>
                   </td>
                   
@@ -226,20 +233,17 @@ export default function GestionNomina() {
                     </button>
                   </td>
 
-                  {/* NUEVOS BOTONES DE ACCIÓN */}
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
                       <button 
                         onClick={() => abrirModalEditar(empleado)}
-                        title="Editar empleado"
-                        className="p-2.5 text-amber-500 bg-transparent hover:bg-amber-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-amber-100"
+                        className="p-2.5 text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
                       >
                         <Edit2 size={16}/>
                       </button>
                       <button 
-                        onClick={() => eliminarRegistro(empleado.id)}
-                        title="Eliminar empleado"
-                        className="p-2.5 text-rose-500 bg-transparent hover:bg-rose-50 rounded-xl transition-all active:scale-90 border border-transparent hover:border-rose-100"
+                        onClick={() => abrirModalEliminar(empleado.id)}
+                        className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
                       >
                         <Trash2 size={16}/>
                       </button>
@@ -252,7 +256,7 @@ export default function GestionNomina() {
         </div>
       </div>
 
-      {/* --- MODAL RESPONSIVA --- */}
+      {/* --- MODAL FORMULARIO (NUEVO/EDITAR) --- */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
           <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in">
@@ -260,71 +264,72 @@ export default function GestionNomina() {
               <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">
                 {editandoId ? 'Editar Empleado' : 'Nuevo Empleado'}
               </h3>
-              <button type="button" onClick={cerrarModal} className="bg-white p-2 rounded-full shadow-sm text-slate-400 hover:text-slate-700 transition-colors"><X size={20} /></button>
+              <button onClick={cerrarModal} className="bg-white p-2 rounded-full text-slate-400"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-4">
+                {/* ... (campos de entrada iguales al anterior) ... */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">Cédula</label>
+                        <input required type="number" className="w-full p-4 bg-slate-50 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={form.cedula} onChange={(e) => setForm({...form, cedula: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">Nombre</label>
+                        <input required className="w-full p-4 bg-slate-50 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={form.nombre} onChange={(e) => setForm({...form, nombre: e.target.value})} />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">Cargo</label>
+                        <input required className="w-full p-4 bg-slate-50 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={form.cargo} onChange={(e) => setForm({...form, cargo: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">Salario ($)</label>
+                        <input required type="number" className="w-full p-4 bg-slate-50 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={form.salario} onChange={(e) => setForm({...form, salario: e.target.value})} />
+                    </div>
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Fecha Ingreso</label>
+                    <input required type="date" className="w-full p-4 bg-slate-50 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20" value={form.fechaIngreso} onChange={(e) => setForm({...form, fechaIngreso: e.target.value})} />
+                </div>
+                <button type="submit" className={`w-full text-white font-black py-4 rounded-2xl transition-all active:scale-95 mt-4 uppercase text-xs tracking-widest ${editandoId ? 'bg-amber-500' : 'bg-slate-900'}`}>
+                    {editandoId ? 'Actualizar' : 'Confirmar'}
+                </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL DE ELIMINACIÓN (ALERTA) --- */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <AlertCircle size={40} />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 mb-2">¿Eliminar registro?</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Esta acción es permanente y no podrás recuperar la información de este empleado.
+              </p>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cédula</label>
-                  <input 
-                    required type="number"
-                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    value={form.cedula}
-                    onChange={(e) => setForm({...form, cedula: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Nombre</label>
-                  <input 
-                    required 
-                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    value={form.nombre}
-                    onChange={(e) => setForm({...form, nombre: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cargo</label>
-                  <input 
-                    required 
-                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    value={form.cargo}
-                    onChange={(e) => setForm({...form, cargo: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Salario ($)</label>
-                  <input 
-                    required type="number"
-                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-emerald-600"
-                    value={form.salario}
-                    onChange={(e) => setForm({...form, salario: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Fecha Ingreso</label>
-                <input 
-                  required type="date"
-                  className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                  value={form.fechaIngreso}
-                  onChange={(e) => setForm({...form, fechaIngreso: e.target.value})}
-                />
-              </div>
-
+            <div className="p-6 bg-slate-50 flex gap-3">
               <button 
-                type="submit" 
-                className={`w-full text-white font-black py-4 rounded-2xl shadow-xl shadow-slate-200 transition-all active:scale-95 mt-4 uppercase text-xs tracking-widest ${
-                  editandoId ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-slate-900 hover:bg-black'
-                }`}
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 bg-white text-slate-600 font-black py-4 rounded-2xl border border-slate-200 hover:bg-white active:scale-95 transition-all text-xs uppercase tracking-widest"
               >
-                {editandoId ? 'Actualizar Datos' : 'Confirmar Registro'}
+                Cancelar
               </button>
-            </form>
+              <button 
+                onClick={confirmarEliminacion}
+                disabled={eliminandoCargando}
+                className="flex-1 bg-rose-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-rose-200 hover:bg-rose-600 active:scale-95 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+              >
+                {eliminandoCargando ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                Eliminar
+              </button>
+            </div>
           </div>
         </div>
       )}
