@@ -95,7 +95,7 @@ alt="Portal de Acceso ProCobros"
 
  <div className="text-center">
  <h1 className="text-4xl font-black text-slate-800 tracking-tighter uppercase italic leading-none">
- Pro<span className="text-blue-600">Cobros</span>
+ ASOVE<span className="text-blue-600">MERPO</span>
 </h1>
  <p className="text-[10px] text-blue-500/60 font-black uppercase tracking-[0.4em] mt-3 bg-blue-50 py-1 px-3 rounded-full inline-block">
 Acceso Administrativo

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../../services/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore'; // Añadido doc
 import { Search, FileDown, FileText, Calendar, User, DollarSign, Loader2 } from 'lucide-react';
 import { generarComprobantePDF } from '../../../utils/generarReportes';
 import { imprimirPlanillaRecaudacion } from '../../../services/recaudacionService';
@@ -9,16 +9,29 @@ export default function HistorialPagos() {
   const [pagos, setPagos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
+  const [tasaDolar, setTasaDolar] = useState(0); // Nuevo estado para la tasa real
 
   useEffect(() => {
+    // 1. Escuchar los pagos (Tu lógica original)
     const q = query(collection(db, "pagos_impuestos"), orderBy("fecha", "desc"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribePagos = onSnapshot(q, (querySnapshot) => {
       const docs = [];
       querySnapshot.forEach((doc) => { docs.push({ id: doc.id, ...doc.data() }); });
       setPagos(docs);
       setCargando(false);
     });
-    return () => unsubscribe();
+
+    // 2. Escuchar la tasa de Firebase para que sea dinámica (Añadido)
+    const unsubscribeTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        setTasaDolar(docSnapshot.data().valor);
+      }
+    });
+
+    return () => {
+      unsubscribePagos();
+      unsubscribeTasa();
+    };
   }, []);
 
   const pagosFiltrados = pagos.filter((pago) =>
@@ -36,7 +49,8 @@ export default function HistorialPagos() {
         </div>
         
         <button 
-          onClick={() => imprimirPlanillaRecaudacion(pagosFiltrados, true)}
+          // CORRECCIÓN: Ahora pasamos 'tasaDolar' (ej. 450.84) en lugar de 'true'
+          onClick={() => imprimirPlanillaRecaudacion(pagosFiltrados, tasaDolar)}
           className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-100"
         >
           <FileText size={18} /> Exportar Reporte
@@ -79,7 +93,6 @@ export default function HistorialPagos() {
                 {pagosFiltrados.length > 0 ? (
                   pagosFiltrados.map((pago) => (
                     <tr key={pago.id} className="hover:bg-slate-50/30 transition-colors group">
-                      {/* Contribuyente y Fecha (Mobile Friendly) */}
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="text-sm font-black text-slate-700 uppercase">{pago.contribuyente}</span>
@@ -95,7 +108,6 @@ export default function HistorialPagos() {
                         </div>
                       </td>
 
-                      {/* Detalles (Solo Desktop) */}
                       <td className="px-6 py-4 hidden sm:table-cell">
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Puesto: {pago.puesto || '---'}</span>
@@ -111,14 +123,12 @@ export default function HistorialPagos() {
                         </div>
                       </td>
 
-                      {/* Monto */}
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl">
                           ${pago.monto?.toLocaleString()}
                         </span>
                       </td>
 
-                      {/* Acciones */}
                       <td className="px-6 py-4">
                         <div className="flex justify-center">
                           <button 

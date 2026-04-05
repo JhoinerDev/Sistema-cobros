@@ -45,12 +45,19 @@ export default function Dashboard() {
         const monto = Number(data.monto) || 0;
         acumulado += monto;
         datosGrafica.push({ monto: monto });
+        
+        // Mantenemos la estructura para la tabla y preparamos datos para el PDF
         datosCompletos.push({
-          contribuyente: data.contribuyente,
+          contribuyente: data.contribuyente || data.nombre || '',
+          cedula: data.cedula || '',
+          puesto: data.puesto || '',
+          metodo: data.metodo || '',
           monto: monto,
+          firmaBase64: data.firmaBase64 || null,
           fechaOriginal: data.fecha?.toDate() || null,
           fechaFormateada: data.fecha?.toDate().toLocaleDateString('es-VE') || 'S/F'
         });
+
         if (data.fecha) fechaMasReciente = data.fecha.toDate();
       });
 
@@ -133,7 +140,7 @@ export default function Dashboard() {
       {/* Grid Optimizado: 2 columnas en móvil, 5 en escritorio */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
         
-        {/* RECAUDADO (Ocupa 2 columnas en móvil para destacar) */}
+        {/* RECAUDADO */}
         <div className="col-span-2 lg:col-span-1 bg-cyan-500 rounded-[2rem] overflow-hidden shadow-lg relative h-28 md:h-36 transition-transform active:scale-95 group">
           <div className="absolute inset-0 opacity-20" style={cardOverlay}></div>
           <div className="p-4 md:p-5 text-white relative z-10 flex flex-col h-full justify-between">
@@ -239,13 +246,11 @@ export default function Dashboard() {
       {/* MODAL ESTILIZADO PARA LA TASA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          {/* Backdrop con desenfoque */}
           <div 
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" 
             onClick={() => setIsModalOpen(false)}
           ></div>
           
-          {/* Contenido del Modal */}
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter leading-none">Ajustar Tasa</h3>
