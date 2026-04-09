@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+// AÑADIDO: Se importaron doc y onSnapshot para leer la tasa
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, onSnapshot } from 'firebase/firestore';
 import SignaturePad from '../../components/ui/SignaturePad';
 import { User, CreditCard, Store, DollarSign, Wallet, FileSignature, FileText, CheckCircle, UserPlus, X } from 'lucide-react';
 import { generarComprobantePDF } from '../../utils/generarReportes';
@@ -21,6 +22,19 @@ export default function GestionImpuestos() {
   const [showModal, setShowModal] = useState(false);
   const [existeLocatario, setExisteLocatario] = useState(true);
   const [nuevoLocatario, setNuevoLocatario] = useState({ nombre: '', cedula: '', puesto: '' });
+
+  // AÑADIDO: Estado para guardar la tasa del dólar
+  const [tasaDolar, setTasaDolar] = useState(0);
+
+  // AÑADIDO: useEffect para escuchar la tasa del dólar en tiempo real
+  useEffect(() => {
+    const unsubscribeTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        setTasaDolar(docSnapshot.data().valor || 0);
+      }
+    });
+    return () => unsubscribeTasa();
+  }, []);
 
   // --- LÓGICA DE AUTOCOMPLETADO ---
   useEffect(() => {
@@ -126,6 +140,9 @@ export default function GestionImpuestos() {
     }
   };
 
+  // AÑADIDO: Cálculo del monto en Bs en tiempo real
+  const montoEnBs = formulario.monto && tasaDolar ? (parseFloat(formulario.monto) * tasaDolar).toFixed(2) : "0.00";
+
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6">
       <div className="px-2">
@@ -211,8 +228,17 @@ export default function GestionImpuestos() {
 
         {/* --- DATOS DE PAGO --- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
+          
+          {/* AÑADIDO: Interfaz actualizada para el cálculo de Bs */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Monto ($)</label>
+            <div className="flex justify-between items-end mb-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Monto ($)</label>
+              {tasaDolar > 0 && (
+                <span className="text-[9px] text-emerald-500 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">
+                  Tasa: {tasaDolar} Bs
+                </span>
+              )}
+            </div>
             <div className="relative">
               <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -226,9 +252,14 @@ export default function GestionImpuestos() {
                 required
               />
             </div>
+            <div className="text-right mt-1">
+              <span className="text-xs font-bold text-slate-500">
+                Equivalente: <span className="text-slate-800">Bs. {montoEnBs}</span>
+              </span>
+            </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 mt-1 sm:mt-0">
             <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Método</label>
             <div className="relative">
               <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

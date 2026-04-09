@@ -9,7 +9,7 @@ export const imprimirPlanillaRecaudacion = (datos = [], tasaApp = 0) => {
 
   // --- 1. ENCABEZADO ESTILO "BOX" (Compacto para ganar espacio vertical) ---
   doc.setLineWidth(0.5);
-  doc.rect(14, 8, 40, 16); // Bajamos un poco la altura de 20 a 16
+  doc.rect(14, 8, 40, 16); 
   doc.rect(54, 8, 180, 16);
   doc.rect(234, 8, 50, 16);
 
@@ -22,17 +22,23 @@ export const imprimirPlanillaRecaudacion = (datos = [], tasaApp = 0) => {
 
   doc.setFontSize(8);
   doc.text(`Fecha: ${fechaHoy}`, 236, 12);
-  // CONEXIÓN CON FIREBASE: Aquí se usa el parámetro tasaApp
+  
+  // ASEGURADO: Aquí sale la tasa del día en el PDF
   doc.text(`Tasa del día: ${Number(tasaApp).toFixed(2)} Bs`, 236, 17);
   doc.text(`Hora: ${hora}`, 236, 21);
 
-  // --- 2. LÓGICA HÍBRIDA (Intacta) ---
+  // --- 2. LÓGICA HÍBRIDA (Actualizada para incluir cálculo de Bs) ---
   const filas = datos.length > 0 
     ? datos.map((item, index) => {
         const nombre = item.contribuyente || item.nombre || '';
         const identificacion = item.cedula || '';
         const lugar = item.puesto || item.cargo || '';
         
+        // CÁLCULO: Multiplicamos el monto por la tasa para la columna de Bolívares
+        const montoEnBs = (item.monto && tasaApp) 
+          ? `Bs. ${(item.monto * tasaApp).toLocaleString('es-VE', { minimumFractionDigits: 2 })}` 
+          : '---';
+
         let observacion = item.estado || '';
         if (item.fecha && typeof item.fecha.toDate === 'function') {
            observacion = item.fecha.toDate().toLocaleDateString();
@@ -43,7 +49,7 @@ export const imprimirPlanillaRecaudacion = (datos = [], tasaApp = 0) => {
           nombre,
           identificacion,
           lugar,
-          '', 
+          montoEnBs, // Ahora la columna muestra el monto calculado en Bs
           item.metodo === 'Efectivo' ? `$${item.monto}` : '',
           item.metodo === 'Punto' ? `$${item.monto}` : '',
           item.metodo === 'Divisa' ? `$${item.monto}` : '',
@@ -53,24 +59,26 @@ export const imprimirPlanillaRecaudacion = (datos = [], tasaApp = 0) => {
       })
     : Array(15).fill(['', '', '', '', '', '', '', '', '', '']);
 
-  // --- 3. GENERACIÓN DE LA TABLA (Ajuste de altura para >15 filas) ---
+  // --- 3. GENERACIÓN DE LA TABLA ---
   autoTable(doc, {
-    startY: 28, // Subimos la tabla para aprovechar el espacio superior
+    startY: 28, 
     theme: 'grid',
     head: [
       [
         { content: '', colSpan: 1 },
         { content: 'Información General', colSpan: 3, styles: { halign: 'center', fillColor: [230, 230, 230], fontSize: 7 } },
-        { content: 'Desglose de Pago', colSpan: 4, styles: { halign: 'center', fillColor: [230, 230, 230], fontSize: 7 } },
+        { content: 'Cálculo Bs.', colSpan: 1, styles: { halign: 'center', fillColor: [210, 210, 210], fontSize: 7 } }, // Nueva etiqueta
+        { content: 'Desglose de Pago ($)', colSpan: 3, styles: { halign: 'center', fillColor: [230, 230, 230], fontSize: 7 } },
         { content: '', colSpan: 2 }
       ],
-      ['N°', 'Nombre / Contribuyente', 'Cédula', 'Puesto', 'Depósito', 'Efectivo', 'Punto', 'Divisa', 'Firma', 'Observación']
+      // Cambiamos 'Depósito' por 'Monto en Bs.'
+      ['N°', 'Nombre / Contribuyente', 'Cédula', 'Puesto', 'Monto en Bs.', 'Efectivo', 'Punto', 'Divisa', 'Firma', 'Observación']
     ],
     body: filas,
     styles: { 
-      fontSize: 7,        // Fuente reducida para compactar
-      cellPadding: 1,     // Margen interno mínimo para que no crezca el alto
-      minCellHeight: 6,   // REDUCIDO: De 18 a 6. Esto permite meter 25+ personas por hoja
+      fontSize: 7,        
+      cellPadding: 1,     
+      minCellHeight: 6,   
       valign: 'middle' 
     },
     headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 7 },
@@ -79,6 +87,7 @@ export const imprimirPlanillaRecaudacion = (datos = [], tasaApp = 0) => {
       1: { cellWidth: 42 },
       2: { cellWidth: 20 },
       3: { cellWidth: 12 },
+      4: { cellWidth: 25, halign: 'right' }, // Estilo para la columna de Bs.
       8: { cellWidth: 30 } 
     },
     

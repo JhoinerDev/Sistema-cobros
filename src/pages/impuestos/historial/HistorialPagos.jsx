@@ -84,7 +84,9 @@ export default function HistorialPagos() {
                 <tr>
                   <th className="px-6 py-5">Contribuyente</th>
                   <th className="px-6 py-5 hidden sm:table-cell">Detalles</th>
-                  <th className="px-6 py-5 text-right">Monto</th>
+                  <th className="px-6 py-5 text-right">Monto ($)</th>
+                  {/* AÑADIDO: Encabezado para Bolívares */}
+                  <th className="px-6 py-5 text-right">Monto (Bs)</th>
                   <th className="px-6 py-5 text-center">Acciones</th>
                 </tr>
               </thead>
@@ -129,6 +131,15 @@ export default function HistorialPagos() {
                         </span>
                       </td>
 
+                      {/* AÑADIDO: Celda con el cálculo en Bolívares */}
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-sm font-black text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl">
+                          {pago.monto && tasaDolar 
+                            ? `Bs. ${(pago.monto * tasaDolar).toLocaleString('es-VE', { minimumFractionDigits: 2 })}` 
+                            : '---'}
+                        </span>
+                      </td>
+
                       <td className="px-6 py-4">
                         <div className="flex justify-center">
                           <button 
@@ -144,7 +155,8 @@ export default function HistorialPagos() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="px-6 py-20 text-center">
+                    {/* Ajustado colSpan de 4 a 5 por la nueva columna */}
+                    <td colSpan="5" className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center opacity-20">
                         <Search size={48} />
                         <p className="text-sm font-bold mt-2 uppercase tracking-widest">Sin resultados</p>
