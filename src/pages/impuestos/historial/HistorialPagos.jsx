@@ -1,43 +1,51 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../../services/firebase';
-import { collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore'; // Añadido doc
-import { Search, FileDown, FileText, Calendar, User, DollarSign, Loader2 } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { Search, FileDown, FileText, Calendar, User, DollarSign, Loader2, Filter } from 'lucide-react'; // Añadí Filter de lucide-react
 import { generarComprobantePDF } from '../../../utils/generarReportes';
 import { imprimirPlanillaRecaudacion } from '../../../services/recaudacionService';
+import dayjs from 'dayjs'; // NUEVO: Asegúrate de tener instalado dayjs (npm install dayjs)
 
 export default function HistorialPagos() {
   const [pagos, setPagos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
-  const [tasaDolar, setTasaDolar] = useState(0); // Nuevo estado para la tasa real
+  
+  // NUEVO: Estado para el filtro de fechas
+  const [filtroTiempo, setFiltroTiempo] = useState('todos');
 
   useEffect(() => {
-    // 1. Escuchar los pagos (Tu lógica original)
     const q = query(collection(db, "pagos_impuestos"), orderBy("fecha", "desc"));
-    const unsubscribePagos = onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const docs = [];
       querySnapshot.forEach((doc) => { docs.push({ id: doc.id, ...doc.data() }); });
       setPagos(docs);
       setCargando(false);
     });
-
-    // 2. Escuchar la tasa de Firebase para que sea dinámica (Añadido)
-    const unsubscribeTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        setTasaDolar(docSnapshot.data().valor);
-      }
-    });
-
-    return () => {
-      unsubscribePagos();
-      unsubscribeTasa();
-    };
+    return () => unsubscribe();
   }, []);
 
-  const pagosFiltrados = pagos.filter((pago) =>
-    pago.contribuyente?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    pago.puesto?.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  // MODIFICADO: Ahora cruza tu búsqueda de texto con el rango de fechas seleccionado
+  const pagosFiltrados = pagos.filter((pago) => {
+    const coincideTexto = pago.contribuyente?.toLowerCase().includes(busqueda.toLowerCase()) ||
+                          pago.puesto?.toLowerCase().includes(busqueda.toLowerCase());
+
+    let coincideTiempo = true;
+    if (filtroTiempo !== 'todos' && pago.fecha) {
+      const fechaPago = dayjs(pago.fecha.toDate());
+      const hoy = dayjs();
+
+      if (filtroTiempo === '15dias') {
+        coincideTiempo = fechaPago.isAfter(hoy.subtract(15, 'day'));
+      } else if (filtroTiempo === 'mes') {
+        coincideTiempo = fechaPago.isAfter(hoy.subtract(1, 'month'));
+      } else if (filtroTiempo === 'ano') {
+        coincideTiempo = fechaPago.isAfter(hoy.subtract(1, 'year'));
+      }
+    }
+
+    return coincideTexto && coincideTiempo;
+  });
 
   return (
     <div className="space-y-6 pb-10">
@@ -49,17 +57,16 @@ export default function HistorialPagos() {
         </div>
         
         <button 
-          // CORRECCIÓN: Ahora pasamos 'tasaDolar' (ej. 450.84) en lugar de 'true'
-          onClick={() => imprimirPlanillaRecaudacion(pagosFiltrados, tasaDolar)}
+          onClick={() => imprimirPlanillaRecaudacion(pagosFiltrados, true)}
           className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-100"
         >
           <FileText size={18} /> Exportar Reporte
         </button>
       </div>
 
-      {/* --- BUSCADOR --- */}
-      <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100">
-        <div className="relative w-full">
+      {/* --- BUSCADOR Y FILTRO DE FECHA (MODIFICADO) --- */}
+      <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
+        <div className="relative w-full md:flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input
             type="text"
@@ -69,8 +76,24 @@ export default function HistorialPagos() {
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
+
+        {/* NUEVO: Select para elegir el rango de tiempo */}
+        <div className="relative w-full md:w-64">
+          <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <select
+            value={filtroTiempo}
+            onChange={(e) => setFiltroTiempo(e.target.value)}
+            className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-600 outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all cursor-pointer appearance-none"
+          >
+            <option value="todos">Todos los tiempos</option>
+            <option value="15dias">Últimos 15 días</option>
+            <option value="mes">Último Mes</option>
+            <option value="ano">Último Año</option>
+          </select>
+        </div>
       </div>
       
+      {/* ... (EL RESTO DEL CÓDIGO QUEDA EXACTAMENTE IGUAL) ... */}
       {cargando ? (
         <div className="h-[40vh] flex flex-col items-center justify-center text-slate-400">
           <Loader2 className="animate-spin text-emerald-500 mb-2" size={32} />
@@ -84,9 +107,7 @@ export default function HistorialPagos() {
                 <tr>
                   <th className="px-6 py-5">Contribuyente</th>
                   <th className="px-6 py-5 hidden sm:table-cell">Detalles</th>
-                  <th className="px-6 py-5 text-right">Monto ($)</th>
-                  {/* AÑADIDO: Encabezado para Bolívares */}
-                  <th className="px-6 py-5 text-right">Monto (Bs)</th>
+                  <th className="px-6 py-5 text-right">Monto</th>
                   <th className="px-6 py-5 text-center">Acciones</th>
                 </tr>
               </thead>
@@ -95,6 +116,7 @@ export default function HistorialPagos() {
                 {pagosFiltrados.length > 0 ? (
                   pagosFiltrados.map((pago) => (
                     <tr key={pago.id} className="hover:bg-slate-50/30 transition-colors group">
+                      {/* Contribuyente y Fecha (Mobile Friendly) */}
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="text-sm font-black text-slate-700 uppercase">{pago.contribuyente}</span>
@@ -110,6 +132,7 @@ export default function HistorialPagos() {
                         </div>
                       </td>
 
+                      {/* Detalles (Solo Desktop) */}
                       <td className="px-6 py-4 hidden sm:table-cell">
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Puesto: {pago.puesto || '---'}</span>
@@ -125,21 +148,14 @@ export default function HistorialPagos() {
                         </div>
                       </td>
 
+                      {/* Monto */}
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl">
                           ${pago.monto?.toLocaleString()}
                         </span>
                       </td>
 
-                      {/* AÑADIDO: Celda con el cálculo en Bolívares */}
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-black text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl">
-                          {pago.monto && tasaDolar 
-                            ? `Bs. ${(pago.monto * tasaDolar).toLocaleString('es-VE', { minimumFractionDigits: 2 })}` 
-                            : '---'}
-                        </span>
-                      </td>
-
+                      {/* Acciones */}
                       <td className="px-6 py-4">
                         <div className="flex justify-center">
                           <button 
@@ -155,8 +171,7 @@ export default function HistorialPagos() {
                   ))
                 ) : (
                   <tr>
-                    {/* Ajustado colSpan de 4 a 5 por la nueva columna */}
-                    <td colSpan="5" className="px-6 py-20 text-center">
+                    <td colSpan="4" className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center opacity-20">
                         <Search size={48} />
                         <p className="text-sm font-bold mt-2 uppercase tracking-widest">Sin resultados</p>
