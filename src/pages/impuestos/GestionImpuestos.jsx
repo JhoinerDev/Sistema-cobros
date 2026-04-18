@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-// AÑADIDO: Se importaron doc y onSnapshot para leer la tasa
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import SignaturePad from '../../components/ui/SignaturePad';
-import { User, CreditCard, Store, DollarSign, Wallet, FileSignature, FileText, CheckCircle, UserPlus, X } from 'lucide-react';
+import { User, CreditCard, Store, DollarSign, Wallet, FileSignature, FileText, CheckCircle, UserPlus, X, AlertTriangle, Info, Calendar, Clock } from 'lucide-react';
 import { generarComprobantePDF } from '../../utils/generarReportes';
+import dayjs from 'dayjs';
+import 'dayjs/locale/es'; // Asegura que los nombres de los meses salgan en español
 
 export default function GestionImpuestos() {
   const [formulario, setFormulario] = useState({
@@ -12,7 +13,8 @@ export default function GestionImpuestos() {
     cedula: '',
     puesto: '',
     monto: '',
-    metodo: 'Efectivo'
+    metodo: 'Efectivo',
+    periodoSeleccionado: '' // <-- NUEVO: Para manejar el mes específico a pagar
   });
   const [firma, setFirma] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -23,20 +25,30 @@ export default function GestionImpuestos() {
   const [existeLocatario, setExisteLocatario] = useState(true);
   const [nuevoLocatario, setNuevoLocatario] = useState({ nombre: '', cedula: '', puesto: '' });
 
-  // AÑADIDO: Estado para guardar la tasa del dólar
   const [tasaDolar, setTasaDolar] = useState(0);
+  const [fechaCobroOficial, setFechaCobroOficial] = useState("");
+  const [idLocatario, setIdLocatario] = useState(null);
+  
+  const [mesesDeudaLista, setMesesDeudaLista] = useState([]); // <-- NUEVO: Lista de meses pendientes
 
-  // AÑADIDO: useEffect para escuchar la tasa del dólar en tiempo real
   useEffect(() => {
     const unsubscribeTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (docSnapshot) => {
       if (docSnapshot.exists()) {
         setTasaDolar(docSnapshot.data().valor || 0);
       }
     });
-    return () => unsubscribeTasa();
+    const unsubscribeFecha = onSnapshot(doc(db, "configuracion", "fecha_cobro"), (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        setFechaCobroOficial(docSnapshot.data().valor || "");
+      }
+    });
+    return () => {
+      unsubscribeTasa();
+      unsubscribeFecha();
+    };
   }, []);
 
-  // --- LÓGICA DE AUTOCOMPLETADO ---
+  // --- LÓGICA DE AUTOCOMPLETADO Y DETECCIÓN DE MESES ESPECÍFICOS ---
   useEffect(() => {
     const buscarLocatario = async () => {
       if (formulario.cedula.length >= 5) {
@@ -48,15 +60,42 @@ export default function GestionImpuestos() {
           );
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
-            const datos = querySnapshot.docs[0].data();
+            const docLocatario = querySnapshot.docs[0];
+            const datos = docLocatario.data();
+            
+            setIdLocatario(docLocatario.id);
+            
             setFormulario(prev => ({
               ...prev,
               contribuyente: datos.nombre,
-              puesto: datos.puesto
+              puesto: datos.puesto,
+              periodoSeleccionado: fechaCobroOficial || dayjs().format('YYYY-MM-DD')
             }));
             setExisteLocatario(true);
+
+            // CÁLCULO DE MESES DE DEUDA REALES
+            if (datos.ultimoPago) {
+              const fechaUltimo = dayjs(datos.ultimoPago);
+              const fechaReferencia = fechaCobroOficial ? dayjs(fechaCobroOficial) : dayjs().startOf('month');
+              const diffMeses = fechaReferencia.diff(fechaUltimo, 'month');
+
+              if (diffMeses > 0) {
+                const pendientes = [];
+                for (let i = 1; i <= diffMeses; i++) {
+                  // Generamos la lista de meses que debe
+                  pendientes.push(fechaUltimo.add(i, 'month').format('YYYY-MM-DD'));
+                }
+                setMesesDeudaLista(pendientes);
+                // Por defecto, seleccionar el mes más antiguo que debe
+                setFormulario(prev => ({ ...prev, periodoSeleccionado: pendientes[0] }));
+              } else {
+                setMesesDeudaLista([]);
+              }
+            }
           } else {
             setExisteLocatario(false);
+            setMesesDeudaLista([]);
+            setIdLocatario(null);
           }
         } catch (error) {
           console.error("Error buscando locatario:", error);
@@ -67,12 +106,17 @@ export default function GestionImpuestos() {
     };
     const timeoutId = setTimeout(() => buscarLocatario(), 500); 
     return () => clearTimeout(timeoutId);
-  }, [formulario.cedula]);
+  }, [formulario.cedula, fechaCobroOficial]);
 
   const handleRegistrarNuevo = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, "locatarios"), nuevoLocatario);
+      // Al registrar nuevo, lo ponemos un mes atrás para que deba el periodo actual
+      const fechaInicio = fechaCobroOficial || dayjs().format('YYYY-MM-DD');
+      await addDoc(collection(db, "locatarios"), {
+        ...nuevoLocatario,
+        ultimoPago: dayjs(fechaInicio).subtract(1, 'month').format('YYYY-MM-DD')
+      });
       setFormulario(prev => ({ 
         ...prev, 
         cedula: nuevoLocatario.cedula, 
@@ -112,16 +156,27 @@ export default function GestionImpuestos() {
         metodo: formulario.metodo,
         firmaBase64: firma,
         fecha: serverTimestamp(),
+        // GUARDAMOS EL PERIODO QUE SELECCIONAMOS EN EL FORMULARIO
+        periodoCorrespondiente: formulario.periodoSeleccionado,
         tipo: "Impuesto Municipal"
       };
 
       const docRef = await addDoc(collection(db, "pagos_impuestos"), nuevoPago);
 
+      if (idLocatario) {
+        const locatarioRef = doc(db, "locatarios", idLocatario);
+        // Marcamos el último pago como el mes que acaba de pagar
+        await updateDoc(locatarioRef, {
+          ultimoPago: formulario.periodoSeleccionado
+        });
+      }
+
       if (generarPDF) {
         const pagoParaPDF = { 
           ...nuevoPago, 
           id: docRef.id, 
-          fecha: { toDate: () => new Date() } 
+          // Pasamos la fecha del periodo para que el ticket diga el mes correcto
+          fecha: { toDate: () => new Date(formulario.periodoSeleccionado) } 
         };
         generarComprobantePDF(pagoParaPDF);
         alert("¡Cobro registrado y PDF generado!");
@@ -129,8 +184,9 @@ export default function GestionImpuestos() {
         alert("¡Cobro registrado exitosamente!");
       }
 
-      setFormulario({ contribuyente: '', cedula: '', puesto: '', monto: '', metodo: 'Efectivo' });
+      setFormulario({ contribuyente: '', cedula: '', puesto: '', monto: '', metodo: 'Efectivo', periodoSeleccionado: '' });
       setFirma(null);
+      setMesesDeudaLista([]); 
       setGenerarPDF(false); 
     } catch (error) {
       console.error("Error al guardar:", error);
@@ -140,19 +196,66 @@ export default function GestionImpuestos() {
     }
   };
 
-  // AÑADIDO: Cálculo del monto en Bs en tiempo real
   const montoEnBs = formulario.monto && tasaDolar ? (parseFloat(formulario.monto) * tasaDolar).toFixed(2) : "0.00";
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6">
+      <div className="bg-slate-800 p-4 rounded-2xl flex items-center justify-between text-white shadow-lg border-b-4 border-emerald-500">
+        <div className="flex items-center gap-3">
+          <div className="bg-emerald-500 p-2 rounded-xl">
+            {fechaCobroOficial ? <Calendar size={20}/> : <Info size={20}/>}
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              {fechaCobroOficial ? "Periodo de Cobro Dashboard" : "Jornada de hoy"}
+            </p>
+            <p className="text-sm font-bold">
+              {fechaCobroOficial 
+                ? dayjs(fechaCobroOficial).format('MMMM YYYY').toUpperCase()
+                : dayjs().format('DD [de] MMMM, YYYY')}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="px-2">
         <h2 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Recaudación de Impuestos</h2>
         <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1 italic">Gestión de Cobros Municipales</p>
       </div>
+
+      {/* ALERTA DE DEUDA CON SELECTOR DE MESES */}
+      {mesesDeudaLista.length > 0 && (
+        <div className="mx-2 p-4 bg-amber-50 border-2 border-amber-100 rounded-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-amber-500 text-white p-2 rounded-xl shadow-lg">
+            <Clock size={24} />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-black text-amber-700 uppercase italic">Deuda Pendiente</h4>
+            <p className="text-[10px] font-bold text-amber-600 mb-2">
+              El contribuyente adeuda {mesesDeudaLista.length} {mesesDeudaLista.length === 1 ? 'mes' : 'meses'}. Seleccione qué mes va a pagar:
+            </p>
+            
+            <select 
+              name="periodoSeleccionado"
+              value={formulario.periodoSeleccionado}
+              onChange={handleInputChange}
+              className="w-full p-2 bg-white border border-amber-200 rounded-lg text-xs font-black text-amber-700 outline-none focus:ring-2 focus:ring-amber-500/20"
+            >
+              {mesesDeudaLista.map((fecha) => (
+                <option key={fecha} value={fecha}>
+                  PAGAR: {dayjs(fecha).format('MMMM YYYY').toUpperCase()}
+                </option>
+              ))}
+              <option value={fechaCobroOficial}>
+                PAGAR: {dayjs(fechaCobroOficial).format('MMMM YYYY').toUpperCase()} (MES ACTUAL)
+              </option>
+            </select>
+          </div>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-8 space-y-6">
-        
-        {/* --- PASO 1: CÉDULA --- */}
+        {/* Input Cédula */}
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col md:flex-row gap-4 items-end md:items-center">
           <div className="flex-1 w-full">
             <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 italic block mb-1">
@@ -170,9 +273,7 @@ export default function GestionImpuestos() {
                 required
               />
               {buscandoLocatario && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-emerald-600 font-bold animate-pulse">
-                  ...
-                </span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-emerald-600 font-bold animate-pulse">...</span>
               )}
             </div>
           </div>
@@ -191,7 +292,7 @@ export default function GestionImpuestos() {
           )}
         </div>
 
-        {/* --- DATOS AUTOCOMPLETADOS --- */}
+        {/* Datos Contribuyente */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Contribuyente</label>
@@ -201,10 +302,8 @@ export default function GestionImpuestos() {
                 type="text"
                 name="contribuyente"
                 value={formulario.contribuyente}
-                onChange={handleInputChange}
-                className="w-full pl-10 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-100 transition-all"
-                placeholder="Nombre completo"
-                required
+                readOnly
+                className="w-full pl-10 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold outline-none"
               />
             </div>
           </div>
@@ -217,19 +316,15 @@ export default function GestionImpuestos() {
                 type="text"
                 name="puesto"
                 value={formulario.puesto}
-                onChange={handleInputChange}
-                className="w-full pl-10 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-100 transition-all"
-                placeholder="Ej. A-12"
-                required
+                readOnly
+                className="w-full pl-10 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold outline-none"
               />
             </div>
           </div>
         </div>
 
-        {/* --- DATOS DE PAGO --- */}
+        {/* Monto y Método */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-          
-          {/* AÑADIDO: Interfaz actualizada para el cálculo de Bs */}
           <div className="space-y-1">
             <div className="flex justify-between items-end mb-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Monto ($)</label>
@@ -267,7 +362,7 @@ export default function GestionImpuestos() {
                 name="metodo"
                 value={formulario.metodo}
                 onChange={handleInputChange}
-                className="w-full pl-10 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-100 transition-all appearance-none"
+                className="w-full pl-10 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-100 transition-all appearance-none font-bold"
               >
                 <option value="Efectivo">Efectivo</option>
                 <option value="Punto">Punto de Venta</option>
@@ -277,12 +372,11 @@ export default function GestionImpuestos() {
           </div>
         </div>
 
-        {/* --- FIRMA DIGITAL (Ajustada para táctil) --- */}
+        {/* Firma */}
         <div className="pt-4 border-t border-gray-50">
           <label className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase mb-3">
             <FileSignature size={14} className="text-emerald-500" /> Validación de Firma Digital
           </label>
-          
           {!firma ? (
             <div className="border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden bg-gray-50/50 touch-none">
               <SignaturePad onSave={handleSaveFirma} />
@@ -303,7 +397,6 @@ export default function GestionImpuestos() {
           )}
         </div>
 
-        {/* --- BOTONES DE ACCIÓN (Stack vertical en móvil) --- */}
         <div className="flex flex-col sm:flex-row gap-3 pt-4">
           <button
             type="submit"
@@ -327,7 +420,7 @@ export default function GestionImpuestos() {
         </div>
       </form>
 
-      {/* --- MODAL RESPONSIVA --- */}
+      {/* Modal Nuevo Locatario */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-300">
           <div className="bg-white rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 duration-300">

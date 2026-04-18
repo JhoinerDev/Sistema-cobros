@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
-// Importamos iconos adicionales para el modal y UI
-import { Eye, EyeOff, TrendingUp, Users, Target, Calendar, Database, Wifi, WifiOff, Edit2, X, Check } from 'lucide-react'; 
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, setDoc } from 'firebase/firestore';
+// Importamos iconos adicionales para el modal y UI incluyendo Clock
+import { Eye, EyeOff, TrendingUp, Users, Target, Calendar, Database, Wifi, WifiOff, Edit2, X, Check, Clock } from 'lucide-react'; 
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../../context/AuthContext'; 
 
@@ -12,9 +12,14 @@ export default function Dashboard() {
   const [isOnline, setIsOnline] = useState(navigator.onLine); 
   const [tasaDolar, setTasaDolar] = useState(0); 
   
-  // NUEVOS ESTADOS PARA EL MODAL ESTILIZADO
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // MODALES INDEPENDIENTES
+  const [isModalOpen, setIsModalOpen] = useState(false); // Para la Tasa
+  const [isModalFechaOpen, setIsModalFechaOpen] = useState(false); // Para la Fecha
+  
+  // ESTADOS PARA DATOS
   const [nuevaTasaInput, setNuevaTasaInput] = useState("");
+  const [fechaCobro, setFechaCobro] = useState(""); // Fecha mostrada en tarjeta
+  const [nuevaFechaInput, setNuevaFechaInput] = useState(""); // Input del modal
 
   const [stats, setStats] = useState({ 
     total: 0, 
@@ -33,6 +38,7 @@ export default function Dashboard() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Snapshot de Pagos
     const qPagos = query(collection(db, "pagos_impuestos"), orderBy("fecha", "asc"));
     const unsubscribePagos = onSnapshot(qPagos, (snapshot) => {
       let acumulado = 0;
@@ -46,7 +52,6 @@ export default function Dashboard() {
         acumulado += monto;
         datosGrafica.push({ monto: monto });
         
-        // Mantenemos la estructura para la tabla y preparamos datos para el PDF
         datosCompletos.push({
           contribuyente: data.contribuyente || data.nombre || '',
           cedula: data.cedula || '',
@@ -74,11 +79,21 @@ export default function Dashboard() {
       setCargando(false);
     });
 
+    // LÓGICA DE TASA (Sincronizada)
     const unsubscribeTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (docSnapshot) => {
       if (docSnapshot.exists()) {
         const val = docSnapshot.data().valor;
         setTasaDolar(val);
-        setNuevaTasaInput(val); // Inicializamos el input con el valor actual
+        setNuevaTasaInput(val);
+      }
+    });
+
+    // LÓGICA DE FECHA DE COBRO (Sincronizada con Gestión)
+    const unsubscribeFecha = onSnapshot(doc(db, "configuracion", "fecha_cobro"), (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const val = docSnapshot.data().valor;
+        setFechaCobro(val);
+        setNuevaFechaInput(val);
       }
     });
 
@@ -87,23 +102,38 @@ export default function Dashboard() {
       window.removeEventListener('offline', handleOffline);
       unsubscribePagos();
       unsubscribeTasa();
+      unsubscribeFecha();
     };
   }, []);
 
-  // Función mejorada para actualizar la tasa desde el modal
+  // FUNCIÓN PARA GUARDAR TASA
   const handleGuardarTasa = async () => {
     const nuevaTasaNum = parseFloat(nuevaTasaInput.toString().replace(',', '.'));
     if (!isNaN(nuevaTasaNum) && nuevaTasaNum > 0) {
       try {
-        await updateDoc(doc(db, "configuracion", "tasa_dolar"), {
+        await setDoc(doc(db, "configuracion", "tasa_dolar"), {
           valor: nuevaTasaNum
-        });
+        }, { merge: true });
         setIsModalOpen(false);
       } catch (error) {
         alert("Error al actualizar la tasa.");
       }
     } else {
       alert("Ingrese un número válido.");
+    }
+  };
+
+  // FUNCIÓN PARA GUARDAR FECHA (Sincroniza el periodo de cobro con GestiónImpuestos)
+  const handleGuardarFecha = async () => {
+    if (nuevaFechaInput) {
+      try {
+        await setDoc(doc(db, "configuracion", "fecha_cobro"), {
+          valor: nuevaFechaInput
+        }, { merge: true });
+        setIsModalFechaOpen(false);
+      } catch (error) {
+        alert("Error al actualizar la fecha.");
+      }
     }
   };
 
@@ -129,7 +159,6 @@ export default function Dashboard() {
       {/* Título e Indicador */}
       <div className="flex flex-row items-center justify-between gap-2 px-1">
         <h2 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Panel</h2>
-        
         <div className={`flex items-center gap-2 text-[9px] bg-white px-3 py-1.5 rounded-full border shadow-sm transition-colors duration-300 ${isOnline ? 'border-emerald-100 text-emerald-600' : 'border-rose-100 text-rose-600'}`}>
           <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
           <span className="font-black uppercase tracking-widest">{isOnline ? 'En Vivo' : 'Offline'}</span>
@@ -137,8 +166,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Grid Optimizado: 2 columnas en móvil, 5 en escritorio */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
         
         {/* RECAUDADO */}
         <div className="col-span-2 lg:col-span-1 bg-cyan-500 rounded-[2rem] overflow-hidden shadow-lg relative h-28 md:h-36 transition-transform active:scale-95 group">
@@ -186,6 +214,25 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* FECHA DE COBRO (PRÓXIMO COBRO) */}
+        <div className="bg-rose-500 rounded-[2rem] p-4 md:p-5 text-white shadow-lg h-28 md:h-36 flex flex-col justify-between relative overflow-hidden active:scale-95">
+          <div className="absolute inset-0 opacity-20" style={cardOverlay}></div>
+          <div className="flex justify-between items-start z-10">
+            <p className="bg-white/20 px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Periodo Cobro</p>
+            {isAdmin && (
+              <button onClick={() => setIsModalFechaOpen(true)} className="bg-rose-400 p-1.5 rounded-xl hover:bg-rose-300 transition-colors">
+                <Edit2 size={14} />
+              </button>
+            )}
+          </div>
+          <div className="flex items-end justify-between z-10">
+            <h2 className="text-lg md:text-xl font-black uppercase tracking-tighter leading-none">
+              {fechaCobro ? new Date(fechaCobro + "T00:00:00").toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }) : "S/F"}
+            </h2>
+            <Clock size={18} className="opacity-30" />
+          </div>
+        </div>
+
         {/* META */}
         <div className="bg-emerald-500 rounded-[2rem] p-4 md:p-5 text-white shadow-lg h-28 md:h-36 flex flex-col justify-between relative overflow-hidden active:scale-95">
           <div className="absolute inset-0 opacity-20" style={cardOverlay}></div>
@@ -207,7 +254,6 @@ export default function Dashboard() {
             <Calendar size={18} className="opacity-30" />
           </div>
         </div>
-
       </div>
 
       {/* TABLA DE MOVIMIENTOS */}
@@ -218,7 +264,6 @@ export default function Dashboard() {
             Movimientos Recientes
           </h3>
         </div>
-        
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left">
             <tbody className="divide-y divide-slate-50">
@@ -243,48 +288,48 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* MODAL ESTILIZADO PARA LA TASA */}
+      {/* MODAL TASA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" 
-            onClick={() => setIsModalOpen(false)}
-          ></div>
-          
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsModalOpen(false)}></div>
+          <div className="bg-white w-full max-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter leading-none">Ajustar Tasa</h3>
-              <button 
-                onClick={() => setIsModalOpen(false)} 
-                className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X size={20} />
+              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Ajustar Tasa</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+            <div className="space-y-5">
+              <input 
+                type="number" step="0.01" value={nuevaTasaInput}
+                onChange={(e) => setNuevaTasaInput(e.target.value)}
+                className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-5 py-4 text-2xl font-black text-slate-800 focus:border-emerald-500 outline-none transition-all"
+                placeholder="0.00" autoFocus
+              />
+              <button onClick={handleGuardarTasa} className="w-full bg-slate-800 text-white py-4 rounded-[1.5rem] font-black uppercase flex items-center justify-center gap-2 hover:bg-slate-700 transition-all shadow-lg active:scale-95">
+                <Check size={20} /> Confirmar Tasa
               </button>
             </div>
-            
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FECHA */}
+      {isModalFechaOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsModalFechaOpen(false)}></div>
+          <div className="bg-white w-full max-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Próximo Cobro</h3>
+              <button onClick={() => setIsModalFechaOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
             <div className="space-y-5">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 ml-1 mb-1.5 block tracking-widest">Monto en Bolívares (Bs.)</label>
-                <div className="relative">
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    value={nuevaTasaInput}
-                    onChange={(e) => setNuevaTasaInput(e.target.value)}
-                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-5 py-4 text-2xl font-black text-slate-800 focus:border-emerald-500 focus:ring-0 focus:outline-none transition-all"
-                    placeholder="0.00"
-                    autoFocus
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 font-black">BCV</div>
-                </div>
-              </div>
-              
-              <button 
-                onClick={handleGuardarTasa}
-                className="w-full bg-slate-800 text-white py-4 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-700 transition-all shadow-lg active:scale-95"
-              >
-                <Check size={20} />
-                Confirmar Tasa
+              <input 
+                type="date" value={nuevaFechaInput}
+                onChange={(e) => setNuevaFechaInput(e.target.value)}
+                className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-5 py-4 text-lg font-black text-slate-800 focus:border-rose-500 outline-none transition-all"
+                autoFocus
+              />
+              <button onClick={handleGuardarFecha} className="w-full bg-rose-600 text-white py-4 rounded-[1.5rem] font-black uppercase flex items-center justify-center gap-2 hover:bg-rose-700 transition-all shadow-lg active:scale-95">
+                <Check size={20} /> Guardar Fecha
               </button>
             </div>
           </div>

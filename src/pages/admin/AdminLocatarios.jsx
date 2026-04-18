@@ -1,35 +1,71 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, writeBatch } from 'firebase/firestore';
-import { UserPlus, Search, Edit2, Trash2, X, Loader2, Database, FileText, Upload } from 'lucide-react';
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, writeBatch, onSnapshot } from 'firebase/firestore'; // Importamos onSnapshot
+import { UserPlus, Search, Edit2, Trash2, X, Loader2, Database, FileText, Upload, AlertCircle, CheckCircle2 } from 'lucide-react'; // Nuevos iconos
 import Papa from 'papaparse'; 
+import dayjs from 'dayjs'; // Necesitamos dayjs para el cálculo de meses
 
-// Importa la función del PDF
 import { imprimirPlanillaNomina } from '../../services/reports/NominaReport';
 
 export default function AdminLocatarios() {
   const [locatarios, setLocatarios] = useState([]);
+  const [pagos, setPagos] = useState([]); // Estado para guardar los pagos
   const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(false);
   
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState({ nombre: '', cedula: '', puesto: '' });
 
-  const obtenerLocatarios = async () => {
+  const obtenerDatos = async () => {
     setCargando(true);
     try {
-      const q = query(collection(db, "locatarios"), orderBy("puesto", "asc"));
-      const querySnapshot = await getDocs(q);
-      const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLocatarios(docs);
+      // 1. Obtener Locatarios
+      const qLocatarios = query(collection(db, "locatarios"), orderBy("puesto", "asc"));
+      const querySnapshotLocatarios = await getDocs(qLocatarios);
+      const docsLocatarios = querySnapshotLocatarios.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // 2. Obtener Pagos (Escuchamos en tiempo real para mantener el estado actualizado)
+      const qPagos = query(collection(db, "pagos_impuestos"));
+      onSnapshot(qPagos, (querySnapshotPagos) => {
+          const docsPagos = querySnapshotPagos.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setPagos(docsPagos);
+          
+          // 3. Cruzar datos: Calcular estado de deuda
+          const locatariosConDeuda = docsLocatarios.map(locatario => {
+            // Filtrar pagos de este locatario (usamos cédula como identificador principal)
+            const pagosLocatario = docsPagos.filter(p => p.cedula === locatario.cedula);
+            
+            let mesesDeuda = "Sin registro";
+            let ultimoPago = null;
+
+            if (pagosLocatario.length > 0) {
+              // Encontrar el pago más reciente
+              const pagosOrdenados = pagosLocatario.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
+              ultimoPago = dayjs(pagosOrdenados[0].fecha.toDate());
+              
+              const fechaActual = dayjs();
+              // Calcular diferencia en meses
+              mesesDeuda = fechaActual.diff(ultimoPago, 'month');
+            }
+
+            return {
+              ...locatario,
+              mesesDeuda,
+              ultimoPago: ultimoPago ? ultimoPago.format('DD/MM/YYYY') : 'N/A'
+            };
+          });
+
+          setLocatarios(locatariosConDeuda);
+          setCargando(false);
+      });
+
     } catch (error) {
-      console.error("Error al obtener locatarios:", error);
-    } finally {
+      console.error("Error al obtener datos:", error);
       setCargando(false);
     }
   };
 
-  useEffect(() => { obtenerLocatarios(); }, []);
+  useEffect(() => { obtenerDatos(); }, []);
 
   // --- LÓGICA DE IMPORTACIÓN MASIVA ---
   const manejarImportacionCSV = (event) => {
@@ -48,12 +84,12 @@ export default function AdminLocatarios() {
 
         try {
           nuevosDatos.forEach((fila) => {
-            if (fila.nombre && fila.cedula && fila.puesto) {
+            if (fila.cedula && fila.cedula.trim() !== '') {
               const nuevoDocRef = doc(collection(db, "locatarios"));
               batch.set(nuevoDocRef, {
-                nombre: fila.nombre.trim(),
+                nombre: fila.nombre ? fila.nombre.trim() : '',
                 cedula: fila.cedula.trim(),
-                puesto: fila.puesto.trim().toUpperCase(),
+                puesto: fila.puesto ? fila.puesto.trim().toUpperCase() : '',
                 fechaRegistro: new Date()
               });
               contador++;
@@ -63,9 +99,9 @@ export default function AdminLocatarios() {
           if (contador > 0) {
             await batch.commit();
             alert(`¡Éxito! Se han cargado ${contador} locatarios al censo.`);
-            obtenerLocatarios();
+            obtenerDatos(); // Refrescamos
           } else {
-            alert("No se encontraron datos válidos en el archivo. Revisa los encabezados (nombre, cedula, puesto).");
+            alert("No se encontraron datos válidos. Asegúrate de que el archivo CSV tenga al menos la columna 'cedula' llena.");
           }
         } catch (error) {
           console.error("Error en batch:", error);
@@ -84,9 +120,9 @@ export default function AdminLocatarios() {
     setCargando(true);
     
     const datosLimpios = {
-      nombre: form.nombre.trim(),
-      cedula: form.cedula.trim(),
-      puesto: form.puesto.trim().toUpperCase()
+      nombre: form.nombre ? form.nombre.trim() : '',
+      cedula: form.cedula ? form.cedula.trim() : '',
+      puesto: form.puesto ? form.puesto.trim().toUpperCase() : ''
     };
 
     try {
@@ -96,7 +132,7 @@ export default function AdminLocatarios() {
         await addDoc(collection(db, "locatarios"), datosLimpios);
       }
       cancelarEdicion();
-      obtenerLocatarios();
+      obtenerDatos();
     } catch (error) {
       console.error("Error al guardar:", error);
       alert("Hubo un error al guardar los datos en la base de datos.");
@@ -110,7 +146,7 @@ export default function AdminLocatarios() {
     setEditandoId(null);
   };
 
-  // --- LÓGICA: ELIMINAR (Mejorada con manejo de errores) ---
+  // --- LÓGICA: ELIMINAR ---
   const eliminarLocatario = async (id) => {
     const confirmacion = window.confirm("⚠️ ¿Estás completamente seguro de eliminar este registro? Esta acción no se puede deshacer.");
     
@@ -118,7 +154,7 @@ export default function AdminLocatarios() {
       setCargando(true);
       try {
         await deleteDoc(doc(db, "locatarios", id));
-        obtenerLocatarios(); // Refresca la tabla automáticamente
+        obtenerDatos(); 
       } catch (error) {
         console.error("Error al eliminar:", error);
         alert("Hubo un problema al intentar eliminar el registro.");
@@ -140,7 +176,7 @@ export default function AdminLocatarios() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Censo de Locatarios</h2>
-          <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Base de Datos Maestra</p>
+          <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Base de Datos Maestra y Estado de Cuenta</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           
@@ -202,7 +238,6 @@ export default function AdminLocatarios() {
             onChange={e => setForm({...form, nombre: e.target.value})}
             className="w-full p-3 bg-slate-50 border border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
             placeholder="Nombre del locatario"
-            required 
           />
         </div>
         <div className="space-y-1">
@@ -213,7 +248,6 @@ export default function AdminLocatarios() {
             onChange={e => setForm({...form, puesto: e.target.value})}
             className="w-full p-3 bg-slate-50 border border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
             placeholder="Ej: A-102"
-            required 
           />
         </div>
         
@@ -264,6 +298,7 @@ export default function AdminLocatarios() {
                 <th className="px-6 py-5">Puesto</th>
                 <th className="px-6 py-5">Contribuyente</th>
                 <th className="px-6 py-5 hidden md:table-cell">ID/Cédula</th>
+                <th className="px-6 py-5 text-center">Estado</th> {/* Nueva Columna */}
                 <th className="px-6 py-5 text-right">Acciones</th>
               </tr>
             </thead>
@@ -271,13 +306,37 @@ export default function AdminLocatarios() {
               {locatariosFiltrados.map((l) => (
                 <tr key={l.id} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="px-6 py-4 font-black text-emerald-600">
-                    <span className="bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">{l.puesto}</span>
+                    <span className="bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">{l.puesto || 'S/P'}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-sm font-bold text-slate-700">{l.nombre}</p>
+                    <p className="text-sm font-bold text-slate-700">{l.nombre || 'Sin Nombre'}</p>
                     <p className="text-[10px] text-slate-400 md:hidden font-mono mt-0.5">{l.cedula}</p>
                   </td>
                   <td className="px-6 py-4 text-xs text-slate-400 font-mono hidden md:table-cell">{l.cedula}</td>
+                  
+                  {/* Celda de Estado de Deuda */}
+                  <td className="px-6 py-4 text-center">
+                    {l.mesesDeuda === "Sin registro" ? (
+                       <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-bold uppercase">
+                         Sin Historial
+                       </span>
+                    ) : l.mesesDeuda <= 0 ? (
+                      <div className="flex flex-col items-center">
+                        <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase">
+                          <CheckCircle2 size={12} /> Al Día
+                        </span>
+                        <span className="text-[9px] text-slate-400 mt-1">Últ. Pago: {l.ultimoPago}</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase">
+                           <AlertCircle size={12} /> Debe {l.mesesDeuda} {l.mesesDeuda === 1 ? 'Mes' : 'Meses'}
+                        </span>
+                        <span className="text-[9px] text-slate-400 mt-1">Últ. Pago: {l.ultimoPago}</span>
+                      </div>
+                    )}
+                  </td>
+
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
                       <button 
