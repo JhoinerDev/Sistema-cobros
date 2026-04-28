@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, setDoc } from 'firebase/firestore';
-// Importamos iconos adicionales para el modal y UI incluyendo Clock
-import { Eye, EyeOff, TrendingUp, Users, Target, Calendar, Database, Wifi, WifiOff, Edit2, X, Check, Clock } from 'lucide-react'; 
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { collection, onSnapshot, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { Eye, EyeOff, TrendingUp, Users, Calendar, Wifi, WifiOff, Edit2, X, Check } from 'lucide-react'; 
 import { useAuth } from '../../context/AuthContext'; 
 
 export default function Dashboard() {
@@ -12,19 +10,13 @@ export default function Dashboard() {
   const [isOnline, setIsOnline] = useState(navigator.onLine); 
   const [tasaDolar, setTasaDolar] = useState(0); 
   
-  // MODALES INDEPENDIENTES
-  const [isModalOpen, setIsModalOpen] = useState(false); // Para la Tasa
-  const [isModalFechaOpen, setIsModalFechaOpen] = useState(false); // Para la Fecha
-  
-  // ESTADOS PARA DATOS
+  // MODAL PARA LA TASA
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [nuevaTasaInput, setNuevaTasaInput] = useState("");
-  const [fechaCobro, setFechaCobro] = useState(""); // Fecha mostrada en tarjeta
-  const [nuevaFechaInput, setNuevaFechaInput] = useState(""); // Input del modal
 
   const [stats, setStats] = useState({ 
     total: 0, 
     cantidad: 0, 
-    historialGrafica: [],
     historialCompleto: [], 
     ultimaFecha: null 
   });
@@ -42,7 +34,6 @@ export default function Dashboard() {
     const qPagos = query(collection(db, "pagos_impuestos"), orderBy("fecha", "asc"));
     const unsubscribePagos = onSnapshot(qPagos, (snapshot) => {
       let acumulado = 0;
-      const datosGrafica = [];
       const datosCompletos = [];
       let fechaMasReciente = null;
       
@@ -50,7 +41,6 @@ export default function Dashboard() {
         const data = doc.data();
         const monto = Number(data.monto) || 0;
         acumulado += monto;
-        datosGrafica.push({ monto: monto });
         
         datosCompletos.push({
           contribuyente: data.contribuyente || data.nombre || '',
@@ -69,7 +59,6 @@ export default function Dashboard() {
       setStats({
         total: acumulado,
         cantidad: snapshot.size,
-        historialGrafica: datosGrafica,
         historialCompleto: datosCompletos,
         ultimaFecha: fechaMasReciente
       });
@@ -79,7 +68,7 @@ export default function Dashboard() {
       setCargando(false);
     });
 
-    // LÓGICA DE TASA (Sincronizada)
+    // LÓGICA DE TASA
     const unsubscribeTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (docSnapshot) => {
       if (docSnapshot.exists()) {
         const val = docSnapshot.data().valor;
@@ -88,25 +77,14 @@ export default function Dashboard() {
       }
     });
 
-    // LÓGICA DE FECHA DE COBRO (Sincronizada con Gestión)
-    const unsubscribeFecha = onSnapshot(doc(db, "configuracion", "fecha_cobro"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const val = docSnapshot.data().valor;
-        setFechaCobro(val);
-        setNuevaFechaInput(val);
-      }
-    });
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       unsubscribePagos();
       unsubscribeTasa();
-      unsubscribeFecha();
     };
   }, []);
 
-  // FUNCIÓN PARA GUARDAR TASA
   const handleGuardarTasa = async () => {
     const nuevaTasaNum = parseFloat(nuevaTasaInput.toString().replace(',', '.'));
     if (!isNaN(nuevaTasaNum) && nuevaTasaNum > 0) {
@@ -120,20 +98,6 @@ export default function Dashboard() {
       }
     } else {
       alert("Ingrese un número válido.");
-    }
-  };
-
-  // FUNCIÓN PARA GUARDAR FECHA (Sincroniza el periodo de cobro con GestiónImpuestos)
-  const handleGuardarFecha = async () => {
-    if (nuevaFechaInput) {
-      try {
-        await setDoc(doc(db, "configuracion", "fecha_cobro"), {
-          valor: nuevaFechaInput
-        }, { merge: true });
-        setIsModalFechaOpen(false);
-      } catch (error) {
-        alert("Error al actualizar la fecha.");
-      }
     }
   };
 
@@ -158,7 +122,7 @@ export default function Dashboard() {
     <div className="space-y-4 md:space-y-6 pb-8">
       {/* Título e Indicador */}
       <div className="flex flex-row items-center justify-between gap-2 px-1">
-        <h2 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Panel</h2>
+        <h2 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Panel de Control</h2>
         <div className={`flex items-center gap-2 text-[9px] bg-white px-3 py-1.5 rounded-full border shadow-sm transition-colors duration-300 ${isOnline ? 'border-emerald-100 text-emerald-600' : 'border-rose-100 text-rose-600'}`}>
           <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
           <span className="font-black uppercase tracking-widest">{isOnline ? 'En Vivo' : 'Offline'}</span>
@@ -166,7 +130,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         
         {/* RECAUDADO */}
         <div className="col-span-2 lg:col-span-1 bg-cyan-500 rounded-[2rem] overflow-hidden shadow-lg relative h-28 md:h-36 transition-transform active:scale-95 group">
@@ -181,14 +145,14 @@ export default function Dashboard() {
             <h2 className="text-xl md:text-3xl font-black tracking-tighter leading-none">
               {mostrarSaldo ? `$${stats.total.toLocaleString('es-VE')}` : "••••••"}
             </h2>
-            <div className="text-[8px] font-bold uppercase tracking-widest opacity-60">Sincronizado</div>
+            <div className="text-[8px] font-bold uppercase tracking-widest opacity-60">Total Divisas</div>
           </div>
         </div>
 
         {/* COBROS */}
         <div className="bg-purple-600 rounded-[2rem] p-4 md:p-5 text-white shadow-lg h-28 md:h-36 flex flex-col justify-between relative overflow-hidden active:scale-95">
           <div className="absolute inset-0 opacity-20" style={cardOverlay}></div>
-          <p className="bg-white/20 w-fit px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Cobros</p>
+          <p className="bg-white/20 w-fit px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Transacciones</p>
           <div className="flex items-end justify-between">
             <h2 className="text-3xl md:text-4xl font-black tracking-tighter leading-none">{stats.cantidad}</h2>
             <Users size={18} className="opacity-30" />
@@ -214,29 +178,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* FECHA DE COBRO (PRÓXIMO COBRO) */}
-        <div className="bg-rose-500 rounded-[2rem] p-4 md:p-5 text-white shadow-lg h-28 md:h-36 flex flex-col justify-between relative overflow-hidden active:scale-95">
-          <div className="absolute inset-0 opacity-20" style={cardOverlay}></div>
-          <div className="flex justify-between items-start z-10">
-            <p className="bg-white/20 px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Periodo Cobro</p>
-            {isAdmin && (
-              <button onClick={() => setIsModalFechaOpen(true)} className="bg-rose-400 p-1.5 rounded-xl hover:bg-rose-300 transition-colors">
-                <Edit2 size={14} />
-              </button>
-            )}
-          </div>
-          <div className="flex items-end justify-between z-10">
-            <h2 className="text-lg md:text-xl font-black uppercase tracking-tighter leading-none">
-              {fechaCobro ? new Date(fechaCobro + "T00:00:00").toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }) : "S/F"}
-            </h2>
-            <Clock size={18} className="opacity-30" />
-          </div>
-        </div>
-
         {/* META */}
         <div className="bg-emerald-500 rounded-[2rem] p-4 md:p-5 text-white shadow-lg h-28 md:h-36 flex flex-col justify-between relative overflow-hidden active:scale-95">
           <div className="absolute inset-0 opacity-20" style={cardOverlay}></div>
-          <p className="bg-white/20 w-fit px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Meta</p>
+          <p className="bg-white/20 w-fit px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Progreso Meta</p>
           <h2 className="text-2xl md:text-4xl font-black tracking-tighter leading-none">{porcentajeMeta}%</h2>
           <div className="w-full bg-white/30 h-1 rounded-full overflow-hidden">
             <div className="bg-white h-full transition-all duration-1000" style={{ width: `${porcentajeMeta}%` }}></div>
@@ -246,7 +191,7 @@ export default function Dashboard() {
         {/* ULTIMO PAGO */}
         <div className="bg-orange-500 rounded-[2rem] p-4 md:p-5 text-white shadow-lg h-28 md:h-36 flex flex-col justify-between relative overflow-hidden active:scale-95">
           <div className="absolute inset-0 opacity-20" style={cardOverlay}></div>
-          <p className="bg-white/20 w-fit px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Último</p>
+          <p className="bg-white/20 w-fit px-2 py-0.5 rounded-lg font-bold uppercase text-[8px] tracking-widest">Última Actividad</p>
           <div className="flex items-end justify-between">
             <h2 className="text-base md:text-2xl font-black uppercase tracking-tighter leading-none">
               {stats.ultimaFecha ? stats.ultimaFecha.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }) : "---"}
@@ -292,7 +237,7 @@ export default function Dashboard() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsModalOpen(false)}></div>
-          <div className="bg-white w-full max-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl border border-slate-100">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Ajustar Tasa</h3>
               <button onClick={() => setIsModalOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600"><X size={20} /></button>
@@ -306,30 +251,6 @@ export default function Dashboard() {
               />
               <button onClick={handleGuardarTasa} className="w-full bg-slate-800 text-white py-4 rounded-[1.5rem] font-black uppercase flex items-center justify-center gap-2 hover:bg-slate-700 transition-all shadow-lg active:scale-95">
                 <Check size={20} /> Confirmar Tasa
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL FECHA */}
-      {isModalFechaOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsModalFechaOpen(false)}></div>
-          <div className="bg-white w-full max-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Próximo Cobro</h3>
-              <button onClick={() => setIsModalFechaOpen(false)} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600"><X size={20} /></button>
-            </div>
-            <div className="space-y-5">
-              <input 
-                type="date" value={nuevaFechaInput}
-                onChange={(e) => setNuevaFechaInput(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] px-5 py-4 text-lg font-black text-slate-800 focus:border-rose-500 outline-none transition-all"
-                autoFocus
-              />
-              <button onClick={handleGuardarFecha} className="w-full bg-rose-600 text-white py-4 rounded-[1.5rem] font-black uppercase flex items-center justify-center gap-2 hover:bg-rose-700 transition-all shadow-lg active:scale-95">
-                <Check size={20} /> Guardar Fecha
               </button>
             </div>
           </div>

@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { db } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import SignaturePad from '../../components/ui/SignaturePad';
-import { User, CreditCard, Store, DollarSign, Wallet, FileSignature, FileText, CheckCircle, UserPlus, X, AlertTriangle, Info, Calendar, Clock } from 'lucide-react';
+import { User, CreditCard, Store, DollarSign, Wallet, FileSignature, FileText, CheckCircle, UserPlus, X, Clock, Calendar } from 'lucide-react';
 import { generarComprobantePDF } from '../../utils/generarReportes';
 import dayjs from 'dayjs';
-import 'dayjs/locale/es'; // Asegura que los nombres de los meses salgan en español
+import 'dayjs/locale/es'; 
+
+dayjs.locale('es'); // Establece el idioma globalmente
 
 export default function GestionImpuestos() {
   const [formulario, setFormulario] = useState({
@@ -14,7 +16,7 @@ export default function GestionImpuestos() {
     puesto: '',
     monto: '',
     metodo: 'Efectivo',
-    periodoSeleccionado: '' // <-- NUEVO: Para manejar el mes específico a pagar
+    periodoSeleccionado: '' 
   });
   const [firma, setFirma] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -26,29 +28,23 @@ export default function GestionImpuestos() {
   const [nuevoLocatario, setNuevoLocatario] = useState({ nombre: '', cedula: '', puesto: '' });
 
   const [tasaDolar, setTasaDolar] = useState(0);
-  const [fechaCobroOficial, setFechaCobroOficial] = useState("");
   const [idLocatario, setIdLocatario] = useState(null);
-  
-  const [mesesDeudaLista, setMesesDeudaLista] = useState([]); // <-- NUEVO: Lista de meses pendientes
+  const [mesesDeudaLista, setMesesDeudaLista] = useState([]); 
+
+  // Referencia constante del mes actual para cálculos
+  const fechaHoy = dayjs();
+  const mesActualFormateado = fechaHoy.format('YYYY-MM-DD');
 
   useEffect(() => {
+    // Mantenemos solo la tasa del dólar, eliminamos la fecha oficial de Firestore
     const unsubscribeTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (docSnapshot) => {
       if (docSnapshot.exists()) {
         setTasaDolar(docSnapshot.data().valor || 0);
       }
     });
-    const unsubscribeFecha = onSnapshot(doc(db, "configuracion", "fecha_cobro"), (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        setFechaCobroOficial(docSnapshot.data().valor || "");
-      }
-    });
-    return () => {
-      unsubscribeTasa();
-      unsubscribeFecha();
-    };
+    return () => unsubscribeTasa();
   }, []);
 
-  // --- LÓGICA DE AUTOCOMPLETADO Y DETECCIÓN DE MESES ESPECÍFICOS ---
   useEffect(() => {
     const buscarLocatario = async () => {
       if (formulario.cedula.length >= 5) {
@@ -59,6 +55,7 @@ export default function GestionImpuestos() {
             where("cedula", "==", formulario.cedula.trim())
           );
           const querySnapshot = await getDocs(q);
+          
           if (!querySnapshot.empty) {
             const docLocatario = querySnapshot.docs[0];
             const datos = docLocatario.data();
@@ -69,24 +66,22 @@ export default function GestionImpuestos() {
               ...prev,
               contribuyente: datos.nombre,
               puesto: datos.puesto,
-              periodoSeleccionado: fechaCobroOficial || dayjs().format('YYYY-MM-DD')
+              periodoSeleccionado: mesActualFormateado
             }));
             setExisteLocatario(true);
 
-            // CÁLCULO DE MESES DE DEUDA REALES
+            // Lógica de deuda basada en la fecha del dispositivo
             if (datos.ultimoPago) {
               const fechaUltimo = dayjs(datos.ultimoPago);
-              const fechaReferencia = fechaCobroOficial ? dayjs(fechaCobroOficial) : dayjs().startOf('month');
+              const fechaReferencia = dayjs().startOf('month');
               const diffMeses = fechaReferencia.diff(fechaUltimo, 'month');
 
               if (diffMeses > 0) {
                 const pendientes = [];
                 for (let i = 1; i <= diffMeses; i++) {
-                  // Generamos la lista de meses que debe
                   pendientes.push(fechaUltimo.add(i, 'month').format('YYYY-MM-DD'));
                 }
                 setMesesDeudaLista(pendientes);
-                // Por defecto, seleccionar el mes más antiguo que debe
                 setFormulario(prev => ({ ...prev, periodoSeleccionado: pendientes[0] }));
               } else {
                 setMesesDeudaLista([]);
@@ -106,13 +101,13 @@ export default function GestionImpuestos() {
     };
     const timeoutId = setTimeout(() => buscarLocatario(), 500); 
     return () => clearTimeout(timeoutId);
-  }, [formulario.cedula, fechaCobroOficial]);
+  }, [formulario.cedula, mesActualFormateado]);
 
   const handleRegistrarNuevo = async (e) => {
     e.preventDefault();
     try {
-      // Al registrar nuevo, lo ponemos un mes atrás para que deba el periodo actual
-      const fechaInicio = fechaCobroOficial || dayjs().format('YYYY-MM-DD');
+      // El nuevo locatario empieza debiendo el mes actual (su último pago se registra como el mes pasado)
+      const fechaInicio = mesActualFormateado;
       await addDoc(collection(db, "locatarios"), {
         ...nuevoLocatario,
         ultimoPago: dayjs(fechaInicio).subtract(1, 'month').format('YYYY-MM-DD')
@@ -156,7 +151,6 @@ export default function GestionImpuestos() {
         metodo: formulario.metodo,
         firmaBase64: firma,
         fecha: serverTimestamp(),
-        // GUARDAMOS EL PERIODO QUE SELECCIONAMOS EN EL FORMULARIO
         periodoCorrespondiente: formulario.periodoSeleccionado,
         tipo: "Impuesto Municipal"
       };
@@ -165,7 +159,6 @@ export default function GestionImpuestos() {
 
       if (idLocatario) {
         const locatarioRef = doc(db, "locatarios", idLocatario);
-        // Marcamos el último pago como el mes que acaba de pagar
         await updateDoc(locatarioRef, {
           ultimoPago: formulario.periodoSeleccionado
         });
@@ -175,7 +168,6 @@ export default function GestionImpuestos() {
         const pagoParaPDF = { 
           ...nuevoPago, 
           id: docRef.id, 
-          // Pasamos la fecha del periodo para que el ticket diga el mes correcto
           fecha: { toDate: () => new Date(formulario.periodoSeleccionado) } 
         };
         generarComprobantePDF(pagoParaPDF);
@@ -200,19 +192,18 @@ export default function GestionImpuestos() {
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6">
+      {/* HEADER ACTUALIZADO CON FECHA DEL DISPOSITIVO */}
       <div className="bg-slate-800 p-4 rounded-2xl flex items-center justify-between text-white shadow-lg border-b-4 border-emerald-500">
         <div className="flex items-center gap-3">
           <div className="bg-emerald-500 p-2 rounded-xl">
-            {fechaCobroOficial ? <Calendar size={20}/> : <Info size={20}/>}
+            <Calendar size={20}/>
           </div>
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              {fechaCobroOficial ? "Periodo de Cobro Dashboard" : "Jornada de hoy"}
+              Jornada de hoy
             </p>
             <p className="text-sm font-bold">
-              {fechaCobroOficial 
-                ? dayjs(fechaCobroOficial).format('MMMM YYYY').toUpperCase()
-                : dayjs().format('DD [de] MMMM, YYYY')}
+              {fechaHoy.format('DD [de] MMMM, YYYY').toUpperCase()}
             </p>
           </div>
         </div>
@@ -246,8 +237,8 @@ export default function GestionImpuestos() {
                   PAGAR: {dayjs(fecha).format('MMMM YYYY').toUpperCase()}
                 </option>
               ))}
-              <option value={fechaCobroOficial}>
-                PAGAR: {dayjs(fechaCobroOficial).format('MMMM YYYY').toUpperCase()} (MES ACTUAL)
+              <option value={mesActualFormateado}>
+                PAGAR: {dayjs(mesActualFormateado).format('MMMM YYYY').toUpperCase()} (MES ACTUAL)
               </option>
             </select>
           </div>
