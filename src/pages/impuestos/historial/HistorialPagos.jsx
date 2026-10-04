@@ -16,6 +16,7 @@ export default function HistorialPagos() {
   const [locatarios, setLocatarios] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
+  const [tasaDolar, setTasaDolar] = useState(0);
   const [filtroTiempo, setFiltroTiempo] = useState('todos');
   const [filtroMes, setFiltroMes] = useState(""); 
 
@@ -31,6 +32,10 @@ export default function HistorialPagos() {
   useEffect(() => {
     const unsubFecha = onSnapshot(doc(db, "configuracion", "fecha_cobro"), (snap) => {
       if (snap.exists()) setFechaCobroOficial(snap.data().valor || "");
+    });
+
+    const unsubTasa = onSnapshot(doc(db, "configuracion", "tasa_dolar"), (snap) => {
+      if (snap.exists()) setTasaDolar(snap.data().valor || 0);
     });
 
     const unsubLoc = onSnapshot(collection(db, "locatarios"), (snap) => {
@@ -59,6 +64,7 @@ export default function HistorialPagos() {
       unsubLoc();
       unsubscribe();
       unsubFecha();
+      unsubTasa(); // <--- Agregas esta línea aquí
     };
   }, []);
 
@@ -144,7 +150,7 @@ export default function HistorialPagos() {
           <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Panel de Auditoría y Control</p>
         </div>
         <button 
-          onClick={() => imprimirPlanillaRecaudacion(pagosFiltrados, true)}
+          onClick={() => imprimirPlanillaRecaudacion(pagosFiltrados, tasaDolar)}
           className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-emerald-100"
         >
           <FileText size={18} /> Exportar Reporte
