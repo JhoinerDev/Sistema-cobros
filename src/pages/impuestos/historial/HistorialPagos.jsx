@@ -16,6 +16,7 @@ export default function HistorialPagos() {
   const [locatarios, setLocatarios] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
+  
   const [tasaDolar, setTasaDolar] = useState(0);
   const [filtroTiempo, setFiltroTiempo] = useState('todos');
   const [filtroMes, setFiltroMes] = useState(""); 
