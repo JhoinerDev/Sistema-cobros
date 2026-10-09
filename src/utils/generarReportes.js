@@ -7,10 +7,18 @@ export const generarComprobantePDF = (pago) => {
     ? pago.fecha.toDate().toLocaleDateString() 
     : new Date().toLocaleDateString();
 
+  // 1. FORZAMOS EL CAMBIO DEL CONCEPTO VIEJO
+  // Si el pago dice "Impuesto Municipal" en la base de datos, lo cambiamos a la fuerza.
+  let conceptoMostrar = pago.tipo || 'Cuota ordinaria';
+  if (conceptoMostrar === 'Impuesto Municipal') {
+    conceptoMostrar = 'Cuota ordinaria';
+  }
+
   // --- DISEÑO DEL ENCABEZADO ---
   doc.setFontSize(18);
   doc.setTextColor(30, 41, 59); // Color Slate-800
-  doc.text("COMPROBANTE DE RECAUDACIÓN", 105, 20, { align: 'center' });
+  // 2. CAMBIAMOS EL TÍTULO A UNO NO FISCAL
+  doc.text("RECIBO DE PAGO", 105, 20, { align: 'center' });
   
   doc.setFontSize(10);
   doc.setTextColor(100);
@@ -20,8 +28,9 @@ export const generarComprobantePDF = (pago) => {
   // --- DETALLES DEL PAGO ---
   doc.setFontSize(12);
   doc.setTextColor(0);
-  doc.text(`Contribuyente: ${pago.contribuyente}`, 20, 50);
-  doc.text(`Concepto: ${pago.tipo || 'Impuesto Municipal'}`, 20, 60);
+  // 3. CAMBIAMOS CONTRIBUYENTE POR LOCATARIO
+  doc.text(`Locatario: ${pago.contribuyente}`, 20, 50);
+  doc.text(`Concepto: ${conceptoMostrar}`, 20, 60);
   doc.text(`Fecha de Pago: ${fechaFormateada}`, 20, 70);
   
   doc.setFontSize(14);
@@ -30,7 +39,8 @@ export const generarComprobantePDF = (pago) => {
   // --- SECCIÓN DE FIRMA ---
   doc.setFontSize(10);
   doc.text("__________________________", 150, 120, { align: 'center' });
-  doc.text("Firma del Contribuyente", 150, 125, { align: 'center' });
+  // 4. CAMBIAMOS LA FIRMA
+  doc.text("Firma del Locatario", 150, 125, { align: 'center' });
 
   if (pago.firmaBase64) {
     // Insertamos la firma (x, y, ancho, alto)

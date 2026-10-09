@@ -152,7 +152,7 @@ export default function GestionImpuestos() {
         firmaBase64: firma,
         fecha: serverTimestamp(),
         periodoCorrespondiente: formulario.periodoSeleccionado,
-        tipo: "Impuesto Municipal"
+        tipo: "Cuota ordinaria"
       };
 
       const docRef = await addDoc(collection(db, "pagos_impuestos"), nuevoPago);
@@ -210,8 +210,8 @@ export default function GestionImpuestos() {
       </div>
 
       <div className="px-2">
-        <h2 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Recaudación de Impuestos</h2>
-        <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1 italic">Gestión de Cobros Municipales</p>
+        <h2 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Recaudación de Cuotas</h2>
+        <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1 italic">Gestión de Cuotas de Mantenimiento</p>
       </div>
 
       {/* ALERTA DE DEUDA CON SELECTOR DE MESES */}
